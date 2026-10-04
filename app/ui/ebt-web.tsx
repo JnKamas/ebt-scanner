@@ -38,7 +38,10 @@ export default function EbtWeb() {
   const [mode, setMode] = useState<"used" | "consecutive">("used");
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -61,9 +64,36 @@ export default function EbtWeb() {
     setDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
   }
 
-  async function scanPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const image = event.target.files?.[0];
+  useEffect(() => () => stopCamera(), []);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  }
+
+  async function openCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      fileInput.current?.click();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      streamRef.current = stream;
+      setCameraOpen(true);
+      setMessage("");
+      window.setTimeout(() => {
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      }, 0);
+    } catch {
+      setMessage("Camera permission was not granted. Choose an image instead.");
+      fileInput.current?.click();
+    }
+  }
+
+  async function scanImage(image: File | Blob) {
     if (!image) return;
+    stopCamera();
     setIsScanning(true);
     setMessage("Reading note…");
     try {
@@ -80,8 +110,23 @@ export default function EbtWeb() {
       setMessage("The scan could not run. You can still enter the values manually.");
     } finally {
       setIsScanning(false);
-      event.target.value = "";
     }
+  }
+
+  function scanPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const image = event.target.files?.[0];
+    if (image) void scanImage(image);
+    event.target.value = "";
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => { if (blob) void scanImage(blob); }, "image/jpeg", 0.92);
   }
 
   function useLocation() {
@@ -147,9 +192,16 @@ export default function EbtWeb() {
       <p className="mode-help">{mode === "used" ? "Enter a serial and printer code for each note." : "Keep the printer code and location while you enter a sequence."}</p>
 
       <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
-      <button className="scan" onClick={() => fileInput.current?.click()} disabled={isScanning}>
+      <button className="scan" onClick={openCamera} disabled={isScanning}>
         <span className="scan-icon">⌁</span><span>{isScanning ? "Reading image…" : "Scan with camera"}</span><small>OCR</small>
       </button>
+      {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
+        <div className="camera-toolbar"><span>Point at the serial and printer code</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
+        <video ref={videoRef} autoPlay playsInline muted />
+        <div className="camera-frame" aria-hidden="true" />
+        <button className="capture" onClick={capturePhoto}><i /> Capture</button>
+        <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
+      </div>}
 
       <div className="note-card">
         <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "looks right" : "check format") : "required"}</em><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="X12345678901" autoCapitalize="characters" /></label></div>
