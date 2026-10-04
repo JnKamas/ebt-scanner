@@ -17,6 +17,9 @@ type Note = {
 
 type Tab = "entry" | "queue" | "settings";
 type ScanTarget = "printerCode" | "serial";
+type ScanBox = { x0: number; y0: number; x1: number; y1: number };
+type ScanMatch = { value: string; boxes: ScanBox[] };
+type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
 
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
 const blankDraft = () => ({ serial: "", printerCode: "", denomination: "20", country: "", city: "", postalCode: "", comment: "" });
@@ -26,11 +29,18 @@ function clean(value: string) {
 }
 
 function isSerialValid(serial: string) {
-  return /^[A-Z][A-Z0-9]{10,11}$/.test(serial);
+  const value = clean(serial);
+  const digitSum = (digits: string) => [...digits].reduce((total, digit) => total + Number(digit), 0);
+  if (/^[A-Z]\d{11}$/.test(value)) return (value.charCodeAt(0) + digitSum(value.slice(1))) % 9 === 0;
+  if (/^[A-Z]{2}\d{10}$/.test(value)) {
+    const letterValue = (letter: string) => letter.charCodeAt(0) - 64;
+    return (letterValue(value[0]) + letterValue(value[1]) + digitSum(value.slice(2))) % 9 === 7;
+  }
+  return false;
 }
 
 function isCodeValid(code: string) {
-  return /^[A-Z]\d{3}[A-Z0-9]{1,2}$/.test(code);
+  return /^[A-Z]\d{3}[A-Z][1-9]$/.test(clean(code));
 }
 
 export default function EbtWeb() {
@@ -44,6 +54,7 @@ export default function EbtWeb() {
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
   const [cameraHint, setCameraHint] = useState("");
   const [previewReady, setPreviewReady] = useState(false);
+  const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -51,6 +62,7 @@ export default function EbtWeb() {
   const cameraActiveRef = useRef(false);
   const targetRef = useRef<ScanTarget>("printerCode");
   const readingFrameRef = useRef(false);
+  const scanTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -82,6 +94,7 @@ export default function EbtWeb() {
 
   useEffect(() => () => {
     cameraActiveRef.current = false;
+    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     workerRef.current?.terminate();
   }, []);
@@ -117,18 +130,29 @@ export default function EbtWeb() {
 
   function stopCamera() {
     cameraActiveRef.current = false;
+    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+    scanTimeoutRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
     setIsScanning(false);
     setPreviewReady(false);
+    setScanResult(null);
   }
 
-  function findCode(text: string, target: ScanTarget) {
-    const cleaned = clean(text);
-    return target === "printerCode"
-      ? cleaned.match(/[A-Z]\d{3}[A-Z0-9]{1,2}/)?.[0] ?? ""
-      : cleaned.match(/[A-Z][A-Z0-9]{10,11}/)?.[0] ?? "";
+  function findValidCode(data: { text: string; words?: Array<{ text: string; bbox: ScanBox; confidence: number }> }, target: ScanTarget): ScanMatch | null {
+    const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
+    const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
+    const words = data.words ?? [];
+    for (const word of words) {
+      if (word.confidence < 55) continue;
+      const candidates = clean(word.text).match(matcher) ?? [];
+      const valid = candidates.find(isValid);
+      if (valid) return { value: valid, boxes: [word.bbox] };
+    }
+    const candidates = clean(data.text).match(matcher) ?? [];
+    const valid = candidates.find(isValid);
+    return valid ? { value: valid, boxes: words.map((word) => word.bbox) } : null;
   }
 
   async function getWorker() {
@@ -145,6 +169,18 @@ export default function EbtWeb() {
     setMessage(target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
   }
 
+  function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
+    cameraActiveRef.current = false;
+    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+    scanTimeoutRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    update(target, match.value);
+    setIsScanning(false);
+    setPreviewReady(false);
+    setScanResult({ ...match, target, image, width, height });
+  }
+
   async function readFrame() {
     if (!cameraActiveRef.current || readingFrameRef.current || !videoRef.current?.videoWidth) return;
     readingFrameRef.current = true;
@@ -158,9 +194,9 @@ export default function EbtWeb() {
       if (!image || !cameraActiveRef.current) return;
       const worker = await getWorker();
       const result = await worker.recognize(image);
-      const match = findCode(result.data.text, target);
+      const match = findValidCode(result.data, target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
-        saveScanResult(target, match);
+        finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
         return;
       }
       if (cameraActiveRef.current) setCameraHint(`Still looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
@@ -185,9 +221,15 @@ export default function EbtWeb() {
       streamRef.current = stream;
       cameraActiveRef.current = true;
       setPreviewReady(false);
+      setScanResult(null);
       setCameraOpen(true);
       setIsScanning(true);
       setMessage("");
+      scanTimeoutRef.current = window.setTimeout(() => {
+        if (!cameraActiveRef.current) return;
+        stopCamera();
+        setMessage(`No valid Euro banknote ${target === "printerCode" ? "printer code" : "serial number"} found in 15 seconds. Centre the code inside the frame and try again.`);
+      }, 15000);
     } catch {
       setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
@@ -201,8 +243,8 @@ export default function EbtWeb() {
     try {
       const worker = await getWorker();
       const result = await worker.recognize(image);
-      const match = findCode(result.data.text, scanTarget);
-      if (match) saveScanResult(scanTarget, match);
+      const match = findValidCode(result.data, scanTarget);
+      if (match) saveScanResult(scanTarget, match.value);
       else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${scanTarget === "printerCode" ? "printer code" : "serial number"}.`);
     } catch {
       setMessage("The scan could not run. You can still enter the values manually.");
@@ -285,20 +327,29 @@ export default function EbtWeb() {
       </button>
       <button className="photo-fallback" onClick={() => fileInput.current?.click()}>Use an existing photo instead</button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
-        <div className="camera-toolbar"><span>Scanning {scanTarget === "printerCode" ? "printer code" : "serial number"}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
-        <div className="camera-preview">
-          <video ref={videoRef} autoPlay playsInline muted />
-          <span className="live-label"><i /> LIVE CAMERA</span>
-          {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
-        </div>
-        <div className="camera-frame" aria-hidden="true" />
-        <p className="camera-hint"><i /> {cameraHint}</p>
-        <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
+        <div className="camera-toolbar"><span>{scanResult ? `Valid ${scanResult.target === "printerCode" ? "printer code" : "serial number"} found` : `Scanning ${scanTarget === "printerCode" ? "printer code" : "serial number"}`}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
+        {scanResult ? <>
+          <div className="camera-preview result-preview">
+            <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
+            {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
+          </div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : "Serial number checksum passed and was saved."}</small></div>
+          <button className="continue-scan" onClick={stopCamera}>Continue</button>
+        </> : <>
+          <div className="camera-preview">
+            <video ref={videoRef} autoPlay playsInline muted />
+            <span className="live-label"><i /> LIVE CAMERA</span>
+            {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
+          </div>
+          <div className="camera-frame" aria-hidden="true" />
+          <p className="camera-hint"><i /> {cameraHint}</p>
+          <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
+        </>}
       </div>}
 
       <div className="note-card">
-        <div className="field-row"><label>Printer code <em>{draft.printerCode ? (codeOk ? "looks right" : "check format") : "step 1"}</em><button className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button><input value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="M001A1" autoCapitalize="characters" /></label></div>
-        <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "looks right" : "check format") : "step 2"}</em><button className="field-scan" onClick={() => openCamera("serial")}>Scan</button><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="X12345678901" autoCapitalize="characters" /></label></div>
+        <div className="field-row"><label>Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em><button className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button><input value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" /></label></div>
+        <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em><button className="field-scan" onClick={() => openCamera("serial")}>Scan</button><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" /></label></div>
         <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
       </div>
 

@@ -9,11 +9,13 @@
 ## Required scanning workflow
 
 1. The user scans the **printer code first**.
-2. The app keeps reading the live camera feed while displaying a large, visible live preview so the user can focus the banknote.
-3. Once the expected printer-code pattern is found, stop the camera scan immediately and show the captured result.
-4. Prompt the user to turn the note over and scan the **serial number**.
-5. Repeat the continuous live scan and stop automatically when the serial number is found.
-6. Keep individual rescan controls for both fields and retain manual entry as a fallback.
+2. The app keeps reading the live camera feed for exactly 15 seconds while displaying a large, visible live preview so the user can focus the banknote.
+3. Only accept a code after it passes Euro banknote validation: the printer code must match EBT's six-character short-code structure and a serial number must pass the relevant first-series or Europa-series checksum.
+4. Once a valid code is found, stop the camera scan immediately, freeze the captured frame, draw bounding boxes around OCR text, and show the validated code.
+5. If no valid code is found after 15 seconds, close the scan and give an actionable retry message.
+6. Prompt the user to turn the note over and scan the **serial number**.
+7. Repeat the continuous live scan and stop automatically when the serial number is found.
+8. Keep individual rescan controls for both fields and retain manual entry as a fallback.
 
 ## Product and privacy rules
 
