@@ -364,8 +364,14 @@ export default function EbtWeb() {
       </div>}
 
       <div className="note-card">
-        <div className="field-row"><label>Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em><button className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button><input value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" /></label></div>
-        <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em><button className="field-scan" onClick={() => openCamera("serial")}>Scan</button><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" /></label></div>
+        <div className="field-row">
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
+          <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
+        </div>
+        <div className="field-row">
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
+          <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
+        </div>
         <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
       </div>
 

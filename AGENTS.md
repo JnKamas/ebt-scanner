@@ -16,6 +16,7 @@
 6. Prompt the user to turn the note over and scan the **serial number**.
 7. Repeat the continuous live scan and stop automatically when the serial number is found.
 8. Keep individual rescan controls for both fields and retain manual entry as a fallback.
+9. Printer-code and serial rows are ordinary editable fields. Only an explicit **Scan** button may request/open the camera; never attach camera opening to row, label, or input clicks.
 
 ## Product and privacy rules
 
