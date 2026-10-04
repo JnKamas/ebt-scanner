@@ -356,8 +356,8 @@ export default function EbtWeb() {
             <video ref={videoRef} autoPlay playsInline muted />
             <span className="live-label"><i /> LIVE CAMERA</span>
             {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
+            <div className="camera-frame" aria-hidden="true" />
           </div>
-          <div className="camera-frame" aria-hidden="true" />
           <p className="camera-hint"><i /> {cameraHint}</p>
           <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
         </>}
