@@ -139,7 +139,7 @@ export default function EbtWeb() {
     setScanTarget(target);
     setCameraHint(`Looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
-      fileInput.current?.click();
+      setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or choose a photo manually.");
       return;
     }
     try {
@@ -157,8 +157,7 @@ export default function EbtWeb() {
         }
       }, 0);
     } catch {
-      setMessage("Camera permission was not granted. Choose an image instead.");
-      fileInput.current?.click();
+      setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
   }
 
@@ -252,6 +251,7 @@ export default function EbtWeb() {
       <button className="scan" onClick={() => openCamera(draft.printerCode ? "serial" : "printerCode")} disabled={isScanning}>
         <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : draft.printerCode ? "Step 2 · Scan serial number" : "Step 1 · Scan printer code"}</span><small>LIVE OCR</small>
       </button>
+      <button className="photo-fallback" onClick={() => fileInput.current?.click()}>Use an existing photo instead</button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
         <div className="camera-toolbar"><span>Scanning {scanTarget === "printerCode" ? "printer code" : "serial number"}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
         <div className="camera-preview">
