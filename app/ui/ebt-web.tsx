@@ -43,6 +43,7 @@ export default function EbtWeb() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
   const [cameraHint, setCameraHint] = useState("");
+  const [previewReady, setPreviewReady] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -85,12 +86,42 @@ export default function EbtWeb() {
     workerRef.current?.terminate();
   }, []);
 
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    let cancelled = false;
+
+    const startPreview = async () => {
+      try {
+        await video.play();
+        if (!cancelled) {
+          setPreviewReady(true);
+          void readFrame();
+        }
+      } catch {
+        if (!cancelled) setCameraHint("The webcam started, but its preview could not play. Try closing and scanning again.");
+      }
+    };
+
+    video.srcObject = stream;
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) void startPreview();
+    else video.addEventListener("loadedmetadata", startPreview, { once: true });
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener("loadedmetadata", startPreview);
+      video.srcObject = null;
+    };
+  }, [cameraOpen]);
+
   function stopCamera() {
     cameraActiveRef.current = false;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
     setIsScanning(false);
+    setPreviewReady(false);
   }
 
   function findCode(text: string, target: ScanTarget) {
@@ -153,16 +184,10 @@ export default function EbtWeb() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       streamRef.current = stream;
       cameraActiveRef.current = true;
+      setPreviewReady(false);
       setCameraOpen(true);
       setIsScanning(true);
       setMessage("");
-      window.setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => undefined);
-          videoRef.current.onloadedmetadata = () => void readFrame();
-        }
-      }, 0);
     } catch {
       setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
@@ -264,6 +289,7 @@ export default function EbtWeb() {
         <div className="camera-preview">
           <video ref={videoRef} autoPlay playsInline muted />
           <span className="live-label"><i /> LIVE CAMERA</span>
+          {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
         </div>
         <div className="camera-frame" aria-hidden="true" />
         <p className="camera-hint"><i /> {cameraHint}</p>
