@@ -56,7 +56,14 @@ export default function EbtWeb() {
     if (saved) setNotes(JSON.parse(saved));
     const savedLocation = window.localStorage.getItem("ebt-web-location");
     if (savedLocation) setDraft((current) => ({ ...current, ...JSON.parse(savedLocation) }));
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if ("serviceWorker" in navigator) {
+      if (process.env.NODE_ENV === "production") {
+        navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      } else {
+        navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister()));
+        window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key))));
+      }
+    }
   }, []);
 
   useEffect(() => {

@@ -27,5 +27,6 @@
 - Use `npm.cmd` in PowerShell if the normal `npm` script shim is blocked.
 - Run the TypeScript check with `.\\node_modules\\.bin\\tsc.cmd --noEmit`.
 - Run a production build with `.\\node_modules\\.bin\\next.cmd build` only after stopping the development server; running both together can leave stale development assets.
+- Never register the offline service worker in local development. Next.js development CSS and JS assets must never be cached by the app service worker.
 - Keep laptop layout readable while preserving a responsive mobile layout for later iPhone work.
 - Commit and push completed changes to `JnKamas/ebt-web` unless the user asks to keep a change local.
