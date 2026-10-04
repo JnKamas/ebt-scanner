@@ -152,6 +152,7 @@ export default function EbtWeb() {
       window.setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => undefined);
           videoRef.current.onloadedmetadata = () => void readFrame();
         }
       }, 0);
@@ -253,7 +254,10 @@ export default function EbtWeb() {
       </button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
         <div className="camera-toolbar"><span>Scanning {scanTarget === "printerCode" ? "printer code" : "serial number"}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
-        <video ref={videoRef} autoPlay playsInline muted />
+        <div className="camera-preview">
+          <video ref={videoRef} autoPlay playsInline muted />
+          <span className="live-label"><i /> LIVE CAMERA</span>
+        </div>
         <div className="camera-frame" aria-hidden="true" />
         <p className="camera-hint"><i /> {cameraHint}</p>
         <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
