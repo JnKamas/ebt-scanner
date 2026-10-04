@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { Worker } from "tesseract.js";
 
 type Note = {
   id: string;
@@ -15,6 +16,7 @@ type Note = {
 };
 
 type Tab = "entry" | "queue" | "settings";
+type ScanTarget = "printerCode" | "serial";
 
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
 const blankDraft = () => ({ serial: "", printerCode: "", denomination: "20", country: "", city: "", postalCode: "", comment: "" });
@@ -39,9 +41,15 @@ export default function EbtWeb() {
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
+  const [cameraHint, setCameraHint] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const cameraActiveRef = useRef(false);
+  const targetRef = useRef<ScanTarget>("printerCode");
+  const readingFrameRef = useRef(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -64,15 +72,72 @@ export default function EbtWeb() {
     setDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
   }
 
-  useEffect(() => () => stopCamera(), []);
+  useEffect(() => () => {
+    cameraActiveRef.current = false;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    workerRef.current?.terminate();
+  }, []);
 
   function stopCamera() {
+    cameraActiveRef.current = false;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
+    setIsScanning(false);
   }
 
-  async function openCamera() {
+  function findCode(text: string, target: ScanTarget) {
+    const cleaned = clean(text);
+    return target === "printerCode"
+      ? cleaned.match(/[A-Z]\d{3}[A-Z0-9]{1,2}/)?.[0] ?? ""
+      : cleaned.match(/[A-Z][A-Z0-9]{10,11}/)?.[0] ?? "";
+  }
+
+  async function getWorker() {
+    if (!workerRef.current) {
+      const { createWorker } = await import("tesseract.js");
+      workerRef.current = await createWorker("eng", 1);
+    }
+    return workerRef.current;
+  }
+
+  function saveScanResult(target: ScanTarget, value: string) {
+    update(target, value);
+    stopCamera();
+    setMessage(target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
+  }
+
+  async function readFrame() {
+    if (!cameraActiveRef.current || readingFrameRef.current || !videoRef.current?.videoWidth) return;
+    readingFrameRef.current = true;
+    const target = targetRef.current;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+      const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+      if (!image || !cameraActiveRef.current) return;
+      const worker = await getWorker();
+      const result = await worker.recognize(image);
+      const match = findCode(result.data.text, target);
+      if (match && cameraActiveRef.current && target === targetRef.current) {
+        saveScanResult(target, match);
+        return;
+      }
+      if (cameraActiveRef.current) setCameraHint(`Still looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
+    } catch {
+      if (cameraActiveRef.current) setCameraHint("Could not read that view. Try more light or move closer.");
+    } finally {
+      readingFrameRef.current = false;
+      if (cameraActiveRef.current) window.setTimeout(() => void readFrame(), 350);
+    }
+  }
+
+  async function openCamera(target: ScanTarget) {
+    targetRef.current = target;
+    setScanTarget(target);
+    setCameraHint(`Looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
       fileInput.current?.click();
       return;
@@ -80,10 +145,15 @@ export default function EbtWeb() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       streamRef.current = stream;
+      cameraActiveRef.current = true;
       setCameraOpen(true);
+      setIsScanning(true);
       setMessage("");
       window.setTimeout(() => {
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => void readFrame();
+        }
       }, 0);
     } catch {
       setMessage("Camera permission was not granted. Choose an image instead.");
@@ -95,17 +165,13 @@ export default function EbtWeb() {
     if (!image) return;
     stopCamera();
     setIsScanning(true);
-    setMessage("Reading note…");
+    setMessage(`Reading ${scanTarget === "printerCode" ? "printer code" : "serial number"}…`);
     try {
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng", 1);
+      const worker = await getWorker();
       const result = await worker.recognize(image);
-      await worker.terminate();
-      const text = clean(result.data.text);
-      const serial = text.match(/[A-Z][A-Z0-9]{10,11}/)?.[0] ?? "";
-      const printerCode = text.match(/[A-Z]\d{3}[A-Z0-9]{1,2}/)?.[0] ?? "";
-      setDraft((current) => ({ ...current, serial: serial || current.serial, printerCode: printerCode || current.printerCode }));
-      setMessage(serial || printerCode ? "Check the highlighted values, then save." : "Nothing clear found. Try a closer, brighter photo.");
+      const match = findCode(result.data.text, scanTarget);
+      if (match) saveScanResult(scanTarget, match);
+      else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${scanTarget === "printerCode" ? "printer code" : "serial number"}.`);
     } catch {
       setMessage("The scan could not run. You can still enter the values manually.");
     } finally {
@@ -117,16 +183,6 @@ export default function EbtWeb() {
     const image = event.target.files?.[0];
     if (image) void scanImage(image);
     event.target.value = "";
-  }
-
-  function capturePhoto() {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => { if (blob) void scanImage(blob); }, "image/jpeg", 0.92);
   }
 
   function useLocation() {
@@ -192,20 +248,20 @@ export default function EbtWeb() {
       <p className="mode-help">{mode === "used" ? "Enter a serial and printer code for each note." : "Keep the printer code and location while you enter a sequence."}</p>
 
       <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
-      <button className="scan" onClick={openCamera} disabled={isScanning}>
-        <span className="scan-icon">⌁</span><span>{isScanning ? "Reading image…" : "Scan with camera"}</span><small>OCR</small>
+      <button className="scan" onClick={() => openCamera(draft.printerCode ? "serial" : "printerCode")} disabled={isScanning}>
+        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : draft.printerCode ? "Step 2 · Scan serial number" : "Step 1 · Scan printer code"}</span><small>LIVE OCR</small>
       </button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
-        <div className="camera-toolbar"><span>Point at the serial and printer code</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
+        <div className="camera-toolbar"><span>Scanning {scanTarget === "printerCode" ? "printer code" : "serial number"}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
         <video ref={videoRef} autoPlay playsInline muted />
         <div className="camera-frame" aria-hidden="true" />
-        <button className="capture" onClick={capturePhoto}><i /> Capture</button>
+        <p className="camera-hint"><i /> {cameraHint}</p>
         <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
       </div>}
 
       <div className="note-card">
-        <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "looks right" : "check format") : "required"}</em><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="X12345678901" autoCapitalize="characters" /></label></div>
-        <div className="field-row"><label>Printer code <em>{draft.printerCode ? (codeOk ? "looks right" : "check format") : "required"}</em><input value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="M001A1" autoCapitalize="characters" /></label></div>
+        <div className="field-row"><label>Printer code <em>{draft.printerCode ? (codeOk ? "looks right" : "check format") : "step 1"}</em><button className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button><input value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="M001A1" autoCapitalize="characters" /></label></div>
+        <div className="field-row"><label>Serial number <em>{draft.serial ? (serialOk ? "looks right" : "check format") : "step 2"}</em><button className="field-scan" onClick={() => openCamera("serial")}>Scan</button><input value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="X12345678901" autoCapitalize="characters" /></label></div>
         <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
       </div>
 
