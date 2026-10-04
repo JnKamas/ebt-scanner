@@ -18,5 +18,7 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  // Browser extensions may add a class to the root element before React hydrates.
+  // The app does not depend on root attributes, so avoid a false hydration warning.
+  return <html lang="en" suppressHydrationWarning><body>{children}</body></html>;
 }
