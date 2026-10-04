@@ -4,7 +4,7 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 
 ## Included
 
-- Camera photo capture with browser-side OCR
+- Camera photo capture with browser-side PaddleOCR (PP-OCRv6 tiny) in a background worker
 - Serial and printer-code format checks before a note enters the queue
 - Used-note and consecutive-note entry modes
 - Saved location and reusable comments

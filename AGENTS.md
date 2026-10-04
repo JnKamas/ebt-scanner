@@ -23,6 +23,8 @@
 - Note drafts, saved locations, comments, and the local queue stay in browser local storage.
 - Do not request, store, or transmit EuroBillTracker credentials until an official, supported API/authentication flow has been verified.
 - Treat OCR as assistance only: show captured values and preserve format checks before adding a note.
+- Use the official browser-side PaddleOCR SDK with the PP-OCRv6 tiny detection/recognition models. Do not return to whole-frame Tesseract OCR; crop the on-screen guide area before each inference.
+- The first use downloads the OCR model into the browser. The app must show that it is preparing recognition before the 15-second scan window begins.
 
 ## Development and verification
 

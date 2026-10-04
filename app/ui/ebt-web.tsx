@@ -1,7 +1,6 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { Worker } from "tesseract.js";
 
 type Note = {
   id: string;
@@ -20,6 +19,8 @@ type ScanTarget = "printerCode" | "serial";
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 type ScanMatch = { value: string; boxes: ScanBox[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
+type PaddleItem = { text: string; score: number; poly: Array<[number, number]> };
+type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
 const blankDraft = () => ({ serial: "", printerCode: "", denomination: "20", country: "", city: "", postalCode: "", comment: "" });
@@ -58,7 +59,7 @@ export default function EbtWeb() {
   const fileInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const ocrRef = useRef<PaddleEngine | null>(null);
   const cameraActiveRef = useRef(false);
   const targetRef = useRef<ScanTarget>("printerCode");
   const readingFrameRef = useRef(false);
@@ -96,7 +97,7 @@ export default function EbtWeb() {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
-    workerRef.current?.terminate();
+    ocrRef.current?.dispose();
   }, []);
 
   useEffect(() => {
@@ -140,27 +141,33 @@ export default function EbtWeb() {
     setScanResult(null);
   }
 
-  function findValidCode(data: { text: string; words?: Array<{ text: string; bbox: ScanBox; confidence: number }> }, target: ScanTarget): ScanMatch | null {
+  function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
     const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
     const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
-    const words = data.words ?? [];
-    for (const word of words) {
-      if (word.confidence < 55) continue;
-      const candidates = clean(word.text).match(matcher) ?? [];
+    for (const item of items) {
+      if (item.score < 0.65) continue;
+      const candidates = clean(item.text).match(matcher) ?? [];
       const valid = candidates.find(isValid);
-      if (valid) return { value: valid, boxes: [word.bbox] };
+      if (valid) {
+        const x = item.poly.map(([pointX]) => pointX);
+        const y = item.poly.map(([, pointY]) => pointY);
+        return { value: valid, boxes: [{ x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) }] };
+      }
     }
-    const candidates = clean(data.text).match(matcher) ?? [];
-    const valid = candidates.find(isValid);
-    return valid ? { value: valid, boxes: words.map((word) => word.bbox) } : null;
+    return null;
   }
 
-  async function getWorker() {
-    if (!workerRef.current) {
-      const { createWorker } = await import("tesseract.js");
-      workerRef.current = await createWorker("eng", 1);
+  async function getOcr() {
+    if (!ocrRef.current) {
+      const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
+      ocrRef.current = await PaddleOCR.create({
+        textDetectionModelName: "PP-OCRv6_tiny_det",
+        textRecognitionModelName: "PP-OCRv6_tiny_rec",
+        worker: true,
+        ortOptions: { backend: "auto", numThreads: 2, simd: true }
+      }) as PaddleEngine;
     }
-    return workerRef.current;
+    return ocrRef.current;
   }
 
   function saveScanResult(target: ScanTarget, value: string) {
@@ -187,14 +194,28 @@ export default function EbtWeb() {
     const target = targetRef.current;
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+      const sourceWidth = videoRef.current.videoWidth;
+      const sourceHeight = videoRef.current.videoHeight;
+      const cropX = Math.floor(sourceWidth * 0.12);
+      const cropY = Math.floor(sourceHeight * 0.28);
+      const cropWidth = Math.floor(sourceWidth * 0.76);
+      const cropHeight = Math.floor(sourceHeight * 0.25);
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      canvas.getContext("2d")?.drawImage(videoRef.current, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
       const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
       if (!image || !cameraActiveRef.current) return;
-      const worker = await getWorker();
-      const result = await worker.recognize(image);
-      const match = findValidCode(result.data, target);
+      setCameraHint("Recognizing the guide area…");
+      const ocr = await getOcr();
+      if (!scanTimeoutRef.current) {
+        scanTimeoutRef.current = window.setTimeout(() => {
+          if (!cameraActiveRef.current) return;
+          stopCamera();
+          setMessage(`No valid Euro banknote ${target === "printerCode" ? "printer code" : "serial number"} found in 15 seconds. Centre the code inside the frame and try again.`);
+        }, 15000);
+      }
+      const [result] = await ocr.predict(image, { textDetLimitSideLen: 960, textRecScoreThresh: 0.65 });
+      const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
         return;
@@ -225,11 +246,6 @@ export default function EbtWeb() {
       setCameraOpen(true);
       setIsScanning(true);
       setMessage("");
-      scanTimeoutRef.current = window.setTimeout(() => {
-        if (!cameraActiveRef.current) return;
-        stopCamera();
-        setMessage(`No valid Euro banknote ${target === "printerCode" ? "printer code" : "serial number"} found in 15 seconds. Centre the code inside the frame and try again.`);
-      }, 15000);
     } catch {
       setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
@@ -241,9 +257,9 @@ export default function EbtWeb() {
     setIsScanning(true);
     setMessage(`Reading ${scanTarget === "printerCode" ? "printer code" : "serial number"}…`);
     try {
-      const worker = await getWorker();
-      const result = await worker.recognize(image);
-      const match = findValidCode(result.data, scanTarget);
+      const ocr = await getOcr();
+      const [result] = await ocr.predict(image, { textDetLimitSideLen: 960, textRecScoreThresh: 0.65 });
+      const match = findValidCode(result?.items ?? [], scanTarget);
       if (match) saveScanResult(scanTarget, match.value);
       else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${scanTarget === "printerCode" ? "printer code" : "serial number"}.`);
     } catch {
