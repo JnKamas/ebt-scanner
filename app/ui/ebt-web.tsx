@@ -126,11 +126,15 @@ export default function EbtWeb() {
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
   const [cameraHint, setCameraHint] = useState("");
   const [previewReady, setPreviewReady] = useState(false);
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
+  const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
+  const [autoQueueNext, setAutoQueueNext] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const draftRef = useRef(draft);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -139,6 +143,7 @@ export default function EbtWeb() {
   const targetRef = useRef<ScanTarget>("printerCode");
   const readingFrameRef = useRef(false);
   const scanTimeoutRef = useRef<number | null>(null);
+  const resultTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -160,6 +165,24 @@ export default function EbtWeb() {
   useEffect(() => {
     window.localStorage.setItem("ebt-web-queue", JSON.stringify(notes));
   }, [notes]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    const savedSeconds = Number(window.localStorage.getItem("ebt-web-result-display-seconds"));
+    if (Number.isFinite(savedSeconds) && savedSeconds >= 1 && savedSeconds <= 15) setResultDisplaySeconds(savedSeconds);
+    setAutoQueueNext(window.localStorage.getItem("ebt-web-auto-queue-next") === "true");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("ebt-web-result-display-seconds", String(resultDisplaySeconds));
+  }, [resultDisplaySeconds]);
+
+  useEffect(() => {
+    window.localStorage.setItem("ebt-web-auto-queue-next", String(autoQueueNext));
+  }, [autoQueueNext]);
 
   useEffect(() => {
     void fetch("/api/ebt/session", { cache: "no-store" })
@@ -192,6 +215,7 @@ export default function EbtWeb() {
   useEffect(() => () => {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     ocrRef.current?.dispose();
   }, []);
@@ -223,12 +247,14 @@ export default function EbtWeb() {
       video.removeEventListener("loadedmetadata", startPreview);
       video.srcObject = null;
     };
-  }, [cameraOpen]);
+  }, [cameraOpen, cameraSession]);
 
   function stopCamera() {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     scanTimeoutRef.current = null;
+    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
@@ -308,6 +334,26 @@ export default function EbtWeb() {
     setMessage(target === "denomination" ? `€${value} detected. Now scan the printer code.` : target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
   }
 
+  function advanceFromLiveResult(target: ScanTarget) {
+    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = null;
+    setScanResult(null);
+    if (target === "denomination") {
+      void openCamera("printerCode");
+      return;
+    }
+    if (target === "printerCode") {
+      void openCamera("serial");
+      return;
+    }
+    if (autoQueueNext && addNote(true)) {
+      void openCamera("denomination");
+      return;
+    }
+    stopCamera();
+    setMessage("Serial number saved. Review the note, then add it to the queue.");
+  }
+
   function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
@@ -318,6 +364,7 @@ export default function EbtWeb() {
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult({ ...match, target, image, width, height });
+    resultTimeoutRef.current = window.setTimeout(() => advanceFromLiveResult(target), resultDisplaySeconds * 1000);
   }
 
   async function readFrame() {
@@ -400,6 +447,7 @@ export default function EbtWeb() {
       setPreviewReady(false);
       setScanResult(null);
       setCameraOpen(true);
+      setCameraSession((current) => current + 1);
       setIsScanning(true);
       setMessage("");
     } catch {
@@ -452,15 +500,18 @@ export default function EbtWeb() {
     setMessage("Location saved for your next note.");
   }
 
-  function addNote() {
-    if (!ready) {
+  function addNote(keepLocationAndComment = false) {
+    const currentDraft = draftRef.current;
+    const currentReady = denominations.includes(currentDraft.denomination) && isSerialValid(currentDraft.serial) && isCodeValid(currentDraft.printerCode) && Boolean(currentDraft.city.trim()) && Boolean(currentDraft.country.trim());
+    if (!currentReady) {
       setMessage("Complete a valid-looking serial, printer code, country, and city first.");
-      return;
+      return false;
     }
-    const newNote: Note = { ...draft, serial: clean(draft.serial), printerCode: clean(draft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
-    setDraft((current) => ({ ...blankDraft(), denomination: current.denomination, country: current.country, city: current.city, postalCode: current.postalCode }));
-    setMessage("Added to your local submission queue.");
+    setDraft((current) => keepLocationAndComment ? { ...current, serial: "", printerCode: "", denomination: "" } : ({ ...blankDraft(), country: current.country, city: current.city, postalCode: current.postalCode }));
+    setMessage(keepLocationAndComment ? "Added to your local queue. Scanning the next note…" : "Added to your local submission queue.");
+    return true;
   }
 
   function removeNote(id: string) {
@@ -555,8 +606,8 @@ export default function EbtWeb() {
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "denomination" ? "DENOMINATION DETECTED" : scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.target === "denomination" ? `€${scanResult.value}` : scanResult.value}</strong><small>{scanResult.target === "denomination" ? "Denomination saved. Now scan the printer code." : scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : "Serial number checksum passed and was saved."}</small></div>
-          <button className="continue-scan" onClick={stopCamera}>Continue</button>
+          <div className="scan-success"><span>{scanResult.target === "denomination" ? "DENOMINATION DETECTED" : scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.target === "denomination" ? `€${scanResult.value}` : scanResult.value}</strong><small>{scanResult.target === "denomination" ? "Denomination saved. Next: scan the printer code." : scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
+          <button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button>
         </> : <>
           <div className="camera-preview">
             <video ref={videoRef} autoPlay playsInline muted />
@@ -583,7 +634,7 @@ export default function EbtWeb() {
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
-      <button className="save" onClick={addNote}>Add note to queue <span>→</span></button>
+      <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
@@ -594,7 +645,7 @@ export default function EbtWeb() {
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><div className="scan-settings"><label>Show each scan result for <input type="number" min="1" max="15" value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Math.max(1, Math.min(15, Number(event.target.value) || 1)))} /> seconds</label><small>After denomination and printer-code scans, the next scan begins automatically.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
   </main>;
