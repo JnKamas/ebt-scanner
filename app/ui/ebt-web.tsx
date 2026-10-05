@@ -131,9 +131,17 @@ export default function EbtWeb() {
   }, []);
 
   useEffect(() => {
-    const warmUp = window.setTimeout(() => {
-      void getOcr().catch(() => undefined);
-    }, 0);
+    // Let the entry screen paint first. OCR then prepares in its own worker while
+    // the app is idle, so opening the camera normally has no model-start delay.
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(() => void getOcr().catch(() => undefined), { timeout: 2000 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+    const warmUp = window.setTimeout(() => void getOcr().catch(() => undefined), 500);
     return () => window.clearTimeout(warmUp);
   }, []);
 
@@ -262,7 +270,16 @@ export default function EbtWeb() {
             textDetectionModelName: "PP-OCRv6_tiny_det",
             textRecognitionModelName: "PP-OCRv6_tiny_rec",
             worker: true,
-            ortOptions: { backend: "auto", numThreads: 2, simd: true }
+            textDetectionModelAsset: { url: "/ocr/PP-OCRv6_tiny_det_onnx_infer.tar" },
+            textRecognitionModelAsset: { url: "/ocr/PP-OCRv6_tiny_rec_onnx_infer.tar" },
+            ortOptions: {
+              backend: "wasm",
+              // Browsers without cross-origin isolation cannot use WASM threads.
+              // One predictable SIMD runtime is quicker to start and works everywhere.
+              numThreads: 1,
+              simd: true,
+              wasmPaths: "/ocr/ort/"
+            }
           }) as Promise<PaddleEngine>;
         })();
       }

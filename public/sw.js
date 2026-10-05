@@ -1,4 +1,4 @@
-const CACHE = "ebt-web-v2";
+const CACHE = "ebt-web-v3";
 const APP_SHELL = ["/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
