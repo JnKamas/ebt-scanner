@@ -85,7 +85,9 @@ export default function EbtWeb() {
     if (savedLocation) setDraft((current) => ({ ...current, ...JSON.parse(savedLocation) }));
     if ("serviceWorker" in navigator) {
       if (process.env.NODE_ENV === "production") {
-        navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+        navigator.serviceWorker.register("/sw.js").then(() => {
+          navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
+        }).catch(() => undefined);
       } else {
         navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister()));
         window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key))));
