@@ -398,12 +398,6 @@ export default function EbtWeb() {
       <span className="status"><i /> Private on this device</span>
     </header>
 
-    <section className="hero">
-      <p className="eyebrow">EUROBILLTRACKER ENTRY</p>
-      <h1>Make every note count.</h1>
-      <p>Fast camera-assisted entry, built for your iPhone.</p>
-    </section>
-
     {tab === "entry" && <section className="entry-panel">
       <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
       <button className="scan" onClick={() => openCamera(draft.printerCode ? "serial" : "printerCode")} disabled={isScanning}>
