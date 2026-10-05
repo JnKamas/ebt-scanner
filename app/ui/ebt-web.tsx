@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Note = {
   id: string;
@@ -72,7 +72,6 @@ export default function EbtWeb() {
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [autoQueueNext, setAutoQueueNext] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const draftRef = useRef(draft);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
@@ -277,12 +276,6 @@ export default function EbtWeb() {
     return ocrRef.current;
   }
 
-  function saveScanResult(target: ScanTarget, value: string) {
-    update(target, value);
-    stopCamera();
-    setMessage(target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
-  }
-
   function advanceFromLiveResult(target: ScanTarget) {
     if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
     resultTimeoutRef.current = null;
@@ -381,7 +374,7 @@ export default function EbtWeb() {
     setScanTarget(target);
     setCameraHint(`Looking for the ${labelFor(target)}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
-      setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or choose a photo manually.");
+      setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or enter the values manually.");
       return;
     }
     try {
@@ -397,30 +390,6 @@ export default function EbtWeb() {
     } catch {
       setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
-  }
-
-  async function scanImage(image: File | Blob) {
-    if (!image) return;
-    stopCamera();
-    setIsScanning(true);
-    setMessage(`Reading ${labelFor(scanTarget)}…`);
-    try {
-      const ocr = await getOcr();
-      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
-      const match = findValidCode(result?.items ?? [], scanTarget);
-      if (match) saveScanResult(scanTarget, match.value);
-      else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${labelFor(scanTarget)}.`);
-    } catch {
-      setMessage("The scan could not run. You can still enter the values manually.");
-    } finally {
-      setIsScanning(false);
-    }
-  }
-
-  function scanPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const image = event.target.files?.[0];
-    if (image) void scanImage(image);
-    event.target.value = "";
   }
 
   function useLocation() {
@@ -529,7 +498,6 @@ export default function EbtWeb() {
     </header>
 
     {tab === "entry" && <section className="entry-panel">
-      <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
       <div className="location-card">
         <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
@@ -541,7 +509,6 @@ export default function EbtWeb() {
       <button className="scan" onClick={() => openCamera(followingScanTarget)} disabled={isScanning}>
         <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : followingScanTarget === "printerCode" ? "Step 1 · Scan printer code" : "Step 2 · Scan serial number"}</span><small>LIVE OCR</small>
       </button>
-      <button className="photo-fallback" onClick={() => fileInput.current?.click()}>Use an existing photo instead</button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
         <div className="camera-toolbar"><span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `Scanning ${labelFor(scanTarget)}`}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
         {scanResult ? <>
@@ -559,7 +526,6 @@ export default function EbtWeb() {
             <div ref={cameraFrameRef} className="camera-frame" aria-hidden="true" />
           </div>
           <p className="camera-hint"><i /> {cameraHint}</p>
-          <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
         </>}
       </div>}
 
