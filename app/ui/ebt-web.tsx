@@ -24,7 +24,7 @@ type EbtAccount = {
 };
 
 type Tab = "entry" | "queue" | "settings";
-type ScanTarget = "denomination" | "printerCode" | "serial";
+type ScanTarget = "printerCode" | "serial";
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 type ScanMatch = { value: string; boxes: ScanBox[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
@@ -51,67 +51,6 @@ function isSerialValid(serial: string) {
 
 function isCodeValid(code: string) {
   return /^[A-Z]\d{3}[A-Z][1-9]$/.test(clean(code));
-}
-
-function hueDistance(first: number, second: number) {
-  return Math.min(Math.abs(first - second), 360 - Math.abs(first - second));
-}
-
-function detectDenominationFromColour(context: CanvasRenderingContext2D, width: number, height: number) {
-  const data = context.getImageData(0, 0, width, height).data;
-  const targets = [
-    { denomination: "10", hue: 5 },
-    { denomination: "20", hue: 210 },
-    { denomination: "50", hue: 28 },
-    { denomination: "100", hue: 105 },
-    { denomination: "200", hue: 52 },
-    { denomination: "500", hue: 300 }
-  ];
-  const scores = new Map(targets.map((target) => [target.denomination, 0]));
-  let colourWeight = 0;
-  let neutralWeight = 0;
-
-  for (let index = 0; index < data.length; index += 16) {
-    const red = data[index] / 255;
-    const green = data[index + 1] / 255;
-    const blue = data[index + 2] / 255;
-    const maximum = Math.max(red, green, blue);
-    const minimum = Math.min(red, green, blue);
-    const delta = maximum - minimum;
-    if (maximum < 0.18 || maximum > 0.93) continue;
-    const saturation = maximum === 0 ? 0 : delta / maximum;
-    const weight = 0.4 + maximum;
-    if (saturation < 0.2) {
-      neutralWeight += weight;
-      continue;
-    }
-
-    let hue = 0;
-    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
-    else if (maximum === green) hue = 60 * ((blue - red) / delta + 2);
-    else hue = 60 * ((red - green) / delta + 4);
-    if (hue < 0) hue += 360;
-
-    const saturatedWeight = weight * saturation;
-    colourWeight += saturatedWeight;
-    for (const target of targets) {
-      const similarity = Math.max(0, 1 - hueDistance(hue, target.hue) / 42);
-      scores.set(target.denomination, (scores.get(target.denomination) ?? 0) + saturatedWeight * similarity * similarity);
-    }
-  }
-
-  if (!colourWeight && !neutralWeight) return null;
-  const ranked = [...scores.entries()].sort((first, second) => second[1] - first[1]);
-  const [denomination, winner] = ranked[0];
-  const runnerUp = ranked[1][1];
-  const total = colourWeight + neutralWeight;
-  const neutralShare = neutralWeight / total;
-  const winnerShare = winner / colourWeight;
-  const margin = (winner - runnerUp) / colourWeight;
-
-  if (neutralShare > 0.72 && colourWeight / total < 0.28) return { denomination: "5", confidence: neutralShare };
-  if (winnerShare >= 0.42 && margin >= 0.1) return { denomination, confidence: Math.min(1, winnerShare + margin) };
-  return null;
 }
 
 export default function EbtWeb() {
@@ -211,11 +150,10 @@ export default function EbtWeb() {
   }
 
   function labelFor(target: ScanTarget) {
-    return target === "denomination" ? "denomination" : target === "printerCode" ? "printer code" : "serial number";
+    return target === "printerCode" ? "printer code" : "serial number";
   }
 
   function nextScanTarget(): ScanTarget {
-    if (!denominationOk) return "denomination";
     if (!codeOk) return "printerCode";
     return "serial";
   }
@@ -278,13 +216,6 @@ export default function EbtWeb() {
       const y = item.poly.map(([, pointY]) => pointY);
       return { x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) };
     };
-    if (target === "denomination") {
-      for (const item of readable) {
-        const value = [...item.text.matchAll(/(?:^|\D)(5|10|20|50|100|200|500)(?!\d)/g)].map((match) => match[1]).find((candidate) => denominations.includes(candidate));
-        if (value) return { value, boxes: [boxFor(item)] };
-      }
-      return null;
-    }
     const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
     const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
     const validFrom = (text: string) => (clean(text).match(matcher) ?? []).find(isValid);
@@ -348,23 +279,19 @@ export default function EbtWeb() {
   function saveScanResult(target: ScanTarget, value: string) {
     update(target, value);
     stopCamera();
-    setMessage(target === "denomination" ? `€${value} detected. Now scan the printer code.` : target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
+    setMessage(target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
   }
 
   function advanceFromLiveResult(target: ScanTarget) {
     if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
     resultTimeoutRef.current = null;
     setScanResult(null);
-    if (target === "denomination") {
-      void openCamera("printerCode");
-      return;
-    }
     if (target === "printerCode") {
       void openCamera("serial");
       return;
     }
     if (autoQueueNext && addNote(true)) {
-      void openCamera("denomination");
+      void openCamera("printerCode");
       return;
     }
     stopCamera();
@@ -426,14 +353,6 @@ export default function EbtWeb() {
           setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
         }, 15000);
       }
-      if (target === "denomination") {
-        setCameraHint("Checking the banknote colour…");
-        const colourMatch = detectDenominationFromColour(context, canvas.width, canvas.height);
-        if (colourMatch && cameraActiveRef.current && target === targetRef.current) {
-          finishLiveScan(target, { value: colourMatch.denomination, boxes: [] }, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
-          return;
-        }
-      }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
@@ -452,7 +371,7 @@ export default function EbtWeb() {
   async function openCamera(target: ScanTarget) {
     targetRef.current = target;
     setScanTarget(target);
-    setCameraHint(target === "denomination" ? "Fill the guide with the note’s large coloured area…" : `Looking for the ${labelFor(target)}…`);
+    setCameraHint(`Looking for the ${labelFor(target)}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or choose a photo manually.");
       return;
@@ -526,7 +445,7 @@ export default function EbtWeb() {
     }
     const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
-    setDraft((current) => keepLocationAndComment ? { ...current, serial: "", printerCode: "", denomination: "" } : ({ ...blankDraft(), country: current.country, city: current.city, postalCode: current.postalCode }));
+    setDraft((current) => keepLocationAndComment ? { ...current, serial: "", printerCode: "" } : ({ ...blankDraft(), denomination: current.denomination, country: current.country, city: current.city, postalCode: current.postalCode }));
     setMessage(keepLocationAndComment ? "Added to your local queue. Scanning the next note…" : "Added to your local submission queue.");
     return true;
   }
@@ -613,7 +532,7 @@ export default function EbtWeb() {
       <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
 
       <button className="scan" onClick={() => openCamera(followingScanTarget)} disabled={isScanning}>
-        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : followingScanTarget === "denomination" ? "Step 1 · Scan denomination" : followingScanTarget === "printerCode" ? "Step 2 · Scan printer code" : "Step 3 · Scan serial number"}</span><small>LIVE OCR</small>
+        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : followingScanTarget === "printerCode" ? "Step 1 · Scan printer code" : "Step 2 · Scan serial number"}</span><small>LIVE OCR</small>
       </button>
       <button className="photo-fallback" onClick={() => fileInput.current?.click()}>Use an existing photo instead</button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
@@ -623,7 +542,7 @@ export default function EbtWeb() {
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "denomination" ? "DENOMINATION DETECTED" : scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.target === "denomination" ? `€${scanResult.value}` : scanResult.value}</strong><small>{scanResult.target === "denomination" ? "Denomination saved. Next: scan the printer code." : scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
           <button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button>
         </> : <>
           <div className="camera-preview">
@@ -638,16 +557,13 @@ export default function EbtWeb() {
       </div>}
 
       <div className="note-card">
+        <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="denomination">Denomination <em>{denominationOk ? "detected" : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("denomination")}>Scan</button></div>
-          <input id="denomination" value={draft.denomination} onChange={(e) => update("denomination", e.target.value.replace(/[^0-9]/g, ""))} placeholder="Scan € amount" inputMode="numeric" />
-        </div>
-        <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
           <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 3"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
@@ -662,7 +578,7 @@ export default function EbtWeb() {
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><div className="scan-settings"><label>Show each scan result for <input type="number" min="1" max="15" value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Math.max(1, Math.min(15, Number(event.target.value) || 1)))} /> seconds</label><small>After denomination and printer-code scans, the next scan begins automatically.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><div className="scan-settings"><label>Show each scan result for <input type="number" min="1" max="15" value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Math.max(1, Math.min(15, Number(event.target.value) || 1)))} /> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
   </main>;
