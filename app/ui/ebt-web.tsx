@@ -62,7 +62,6 @@ export default function EbtWeb() {
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mode, setMode] = useState<"used" | "consecutive">("used");
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -324,7 +323,7 @@ export default function EbtWeb() {
     }
     const newNote: Note = { ...draft, serial: clean(draft.serial), printerCode: clean(draft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
-    setDraft((current) => ({ ...blankDraft(), denomination: current.denomination, country: current.country, city: current.city, postalCode: current.postalCode, comment: mode === "consecutive" ? current.comment : "", printerCode: mode === "consecutive" ? current.printerCode : "" }));
+    setDraft((current) => ({ ...blankDraft(), denomination: current.denomination, country: current.country, city: current.city, postalCode: current.postalCode }));
     setMessage("Added to your local submission queue.");
   }
 
@@ -406,12 +405,6 @@ export default function EbtWeb() {
     </section>
 
     {tab === "entry" && <section className="entry-panel">
-      <div className="mode-switch" aria-label="Entry mode">
-        <button className={mode === "used" ? "selected" : ""} onClick={() => setMode("used")}>Used notes</button>
-        <button className={mode === "consecutive" ? "selected" : ""} onClick={() => setMode("consecutive")}>Consecutive</button>
-      </div>
-      <p className="mode-help">{mode === "used" ? "Enter a serial and printer code for each note." : "Keep the printer code and location while you enter a sequence."}</p>
-
       <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
       <button className="scan" onClick={() => openCamera(draft.printerCode ? "serial" : "printerCode")} disabled={isScanning}>
         <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : draft.printerCode ? "Step 2 · Scan serial number" : "Step 1 · Scan printer code"}</span><small>LIVE OCR</small>

@@ -6,7 +6,7 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 
 - Live camera capture with browser-side PaddleOCR (PP-OCRv6 tiny) in a background worker
 - Serial and printer-code format checks before a note enters the queue
-- Used-note and consecutive-note entry modes
+- A focused used-note entry flow
 - Saved location and reusable comments
 - Local persistent queue, CSV copy/export, and official EBT batch submission
 - EBT sign-in using the official HTTPS API; password is never written to browser storage
