@@ -4,16 +4,17 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 
 ## Included
 
-- Camera photo capture with browser-side PaddleOCR (PP-OCRv6 tiny) in a background worker
+- Live camera capture with browser-side PaddleOCR (PP-OCRv6 tiny) in a background worker
 - Serial and printer-code format checks before a note enters the queue
 - Used-note and consecutive-note entry modes
 - Saved location and reusable comments
-- Local persistent queue and CSV copy/export
+- Local persistent queue, CSV copy/export, and official EBT batch submission
+- EBT sign-in using the official HTTPS API; password is never written to browser storage
 - PWA metadata and a small offline app shell
 
 ## Privacy and EBT submission
 
-Notes, saved locations, and comments remain in the browser's local storage. This first version deliberately does **not** request or store EuroBillTracker credentials, and does not submit data to EBT until its official API contract is verified.
+Notes, saved locations, and comments remain in the browser's local storage until you submit them. Sign-in is proxied by server-side Next.js routes to the official EBT HTTPS API: the password is forwarded only for login and is never stored. The returned EBT session ID is held in a secure, HTTP-only cookie and is used only to check the account and submit note batches.
 
 ## Run locally
 

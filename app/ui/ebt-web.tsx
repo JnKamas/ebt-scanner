@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Note = {
   id: string;
@@ -12,6 +12,15 @@ type Note = {
   postalCode: string;
   comment: string;
   createdAt: string;
+};
+
+type EbtAccount = {
+  username: string;
+  my_city: string;
+  my_country: string;
+  my_zip: string;
+  totalbills: number;
+  totalhits: number;
 };
 
 type Tab = "entry" | "queue" | "settings";
@@ -48,6 +57,11 @@ export default function EbtWeb() {
   const [tab, setTab] = useState<Tab>("entry");
   const [draft, setDraft] = useState(blankDraft);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [account, setAccount] = useState<EbtAccount | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [mode, setMode] = useState<"used" | "consecutive">("used");
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -83,6 +97,13 @@ export default function EbtWeb() {
   useEffect(() => {
     window.localStorage.setItem("ebt-web-queue", JSON.stringify(notes));
   }, [notes]);
+
+  useEffect(() => {
+    void fetch("/api/ebt/session", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data: { account?: EbtAccount | null } | null) => setAccount(data?.account ?? null))
+      .catch(() => undefined);
+  }, []);
 
   const serialOk = isSerialValid(clean(draft.serial));
   const codeOk = isCodeValid(clean(draft.printerCode));
@@ -318,6 +339,60 @@ export default function EbtWeb() {
     setMessage("Queue copied as CSV.");
   }
 
+  function applyEbtDefaults(ebtAccount: EbtAccount) {
+    setDraft((current) => ({ ...current, country: current.country || ebtAccount.my_country || "", city: current.city || ebtAccount.my_city || "", postalCode: current.postalCode || ebtAccount.my_zip || "" }));
+  }
+
+  async function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/ebt/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const data = await response.json() as { account?: EbtAccount; error?: string };
+      if (!response.ok || !data.account) throw new Error(data.error || "Could not sign in to EBT.");
+      setAccount(data.account);
+      applyEbtDefaults(data.account);
+      setEmail("");
+      setPassword("");
+      setMessage(`Signed in to EuroBillTracker as ${data.account.username}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not sign in to EBT.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  async function logout() {
+    await fetch("/api/ebt/logout", { method: "POST" }).catch(() => undefined);
+    setAccount(null);
+    setPassword("");
+    setMessage("Signed out of EuroBillTracker on this device.");
+  }
+
+  async function submitQueue() {
+    if (!account || isSubmitting || notes.length === 0) return;
+    const first = notes[0];
+    const batch = notes.filter((note) => note.country === first.country && note.city === first.city && note.postalCode === first.postalCode).slice(0, 25);
+    setIsSubmitting(true);
+    setMessage(`Sending ${batch.length} note${batch.length === 1 ? "" : "s"} to EuroBillTracker…`);
+    try {
+      const response = await fetch("/api/ebt/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: batch }) });
+      const data = await response.json() as { results?: Array<{ id: string; result: { status?: number } | null }>; error?: string };
+      if (!response.ok || !data.results) throw new Error(data.error || "EBT could not receive the notes.");
+      const successful = data.results.filter(({ result }) => result && (Number(result.status) === 0 || Number(result.status) === 1));
+      const hits = successful.filter(({ result }) => Number(result?.status) === 1).length;
+      if (successful.length) setNotes((current) => current.filter((note) => !successful.some(({ id }) => id === note.id)));
+      const failed = batch.length - successful.length;
+      setMessage(`${successful.length} note${successful.length === 1 ? "" : "s"} submitted${hits ? `, including ${hits} hit${hits === 1 ? "" : "s"}` : ""}.${failed ? ` ${failed} stayed in the queue because EBT rejected it.` : ""}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "EBT could not receive the notes. They remain in your queue.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return <main className="shell">
     <header className="topbar">
       <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Web</b></span></div>
@@ -387,12 +462,13 @@ export default function EbtWeb() {
     </section>}
 
     {tab === "queue" && <section className="queue-panel">
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Settings to submit this queue to EuroBillTracker.</p>)}
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div><strong>€{note.denomination}</strong><span>{note.serial}</span><small>{note.city}, {note.country}</small></div><button aria-label={`Remove ${note.serial}`} onClick={() => removeNote(note.id)}>×</button></article>)}</div><p className="queue-footnote">Submission will be enabled after the official EuroBillTracker API connection is verified.</p></>}
+      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div><strong>€{note.denomination}</strong><span>{note.serial}</span><small>{note.city}, {note.country}</small></div><button aria-label={`Remove ${note.serial}`} onClick={() => removeNote(note.id)}>×</button></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Drafts and the queue are stored only in this browser. No EuroBillTracker password is collected or stored by EBT Web.</p><div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
   </main>;
