@@ -150,7 +150,6 @@ export default function EbtWeb() {
   const denominationOk = denominations.includes(draft.denomination);
   const ready = denominationOk && serialOk && codeOk && Boolean(draft.city.trim()) && Boolean(draft.country.trim());
   const total = useMemo(() => notes.reduce((sum, note) => sum + Number(note.denomination), 0), [notes]);
-  const followingScanTarget = nextScanTarget();
   const notesPerHit = account && Number(account.totalhits) > 0 ? (Number(account.totalbills) / Number(account.totalhits)).toFixed(1) : "—";
 
   function update(field: keyof ReturnType<typeof blankDraft>, value: string) {
@@ -165,11 +164,6 @@ export default function EbtWeb() {
 
   function labelFor(target: ScanTarget) {
     return target === "printerCode" ? "printer code" : "serial number";
-  }
-
-  function nextScanTarget(): ScanTarget {
-    if (!codeOk) return "printerCode";
-    return "serial";
   }
 
   useEffect(() => () => {
@@ -529,11 +523,14 @@ export default function EbtWeb() {
       </div>
       <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
 
-      <button className="scan" onClick={() => openCamera(followingScanTarget)} disabled={isScanning}>
-        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : followingScanTarget === "printerCode" ? "Step 1 · Scan printer code" : "Step 2 · Scan serial number"}</span><small>LIVE OCR</small>
-      </button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
-        <div className="camera-toolbar"><span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `Scanning ${labelFor(scanTarget)}`}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
+        <div className="camera-toolbar">
+          <div className="camera-context">
+            <small>€{draft.denomination || "—"}{(scanResult?.target ?? scanTarget) === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
+            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `Scanning ${labelFor(scanTarget)}`}</span>
+          </div>
+          <button onClick={stopCamera} aria-label="Close camera">×</button>
+        </div>
         {scanResult ? <>
           <div className="camera-preview result-preview">
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
