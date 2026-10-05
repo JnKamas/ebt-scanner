@@ -139,6 +139,7 @@ export default function EbtWeb() {
   const cameraFrameRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ocrRef = useRef<PaddleEngine | null>(null);
+  const ocrLoadingRef = useRef<Promise<PaddleEngine> | null>(null);
   const cameraActiveRef = useRef(false);
   const targetRef = useRef<ScanTarget>("printerCode");
   const readingFrameRef = useRef(false);
@@ -189,6 +190,13 @@ export default function EbtWeb() {
       .then(async (response) => response.ok ? response.json() : null)
       .then((data: { account?: EbtAccount | null } | null) => setAccount(data?.account ?? null))
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const warmUp = window.setTimeout(() => {
+      void getOcr().catch(() => undefined);
+    }, 0);
+    return () => window.clearTimeout(warmUp);
   }, []);
 
   const serialOk = isSerialValid(clean(draft.serial));
@@ -316,14 +324,23 @@ export default function EbtWeb() {
 
   async function getOcr() {
     if (!ocrRef.current) {
-      setCameraHint("Preparing on-device recognition…");
-      const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
-      ocrRef.current = await PaddleOCR.create({
-        textDetectionModelName: "PP-OCRv6_tiny_det",
-        textRecognitionModelName: "PP-OCRv6_tiny_rec",
-        worker: true,
-        ortOptions: { backend: "auto", numThreads: 2, simd: true }
-      }) as PaddleEngine;
+      if (!ocrLoadingRef.current) {
+        ocrLoadingRef.current = (async () => {
+          const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
+          return PaddleOCR.create({
+            textDetectionModelName: "PP-OCRv6_tiny_det",
+            textRecognitionModelName: "PP-OCRv6_tiny_rec",
+            worker: true,
+            ortOptions: { backend: "auto", numThreads: 2, simd: true }
+          }) as Promise<PaddleEngine>;
+        })();
+      }
+      try {
+        ocrRef.current = await ocrLoadingRef.current;
+      } catch (error) {
+        ocrLoadingRef.current = null;
+        throw error;
+      }
     }
     return ocrRef.current;
   }
@@ -400,7 +417,7 @@ export default function EbtWeb() {
       context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
       const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
       if (!image || !cameraActiveRef.current) return;
-      setCameraHint("Recognizing the guide area…");
+      setCameraHint(ocrRef.current ? "Recognizing the guide area…" : "Preparing on-device recognition…");
       const ocr = await getOcr();
       if (!scanTimeoutRef.current) {
         scanTimeoutRef.current = window.setTimeout(() => {
