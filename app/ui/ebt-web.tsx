@@ -24,7 +24,7 @@ type EbtAccount = {
 };
 
 type Tab = "entry" | "queue" | "settings";
-type ScanTarget = "printerCode" | "serial";
+type ScanTarget = "denomination" | "printerCode" | "serial";
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 type ScanMatch = { value: string; boxes: ScanBox[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
@@ -32,7 +32,7 @@ type PaddleItem = { text: string; score: number; poly: Array<[number, number]> }
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
-const blankDraft = () => ({ serial: "", printerCode: "", denomination: "20", country: "", city: "", postalCode: "", comment: "" });
+const blankDraft = () => ({ serial: "", printerCode: "", denomination: "", country: "", city: "", postalCode: "", comment: "" });
 
 function clean(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -109,11 +109,23 @@ export default function EbtWeb() {
 
   const serialOk = isSerialValid(clean(draft.serial));
   const codeOk = isCodeValid(clean(draft.printerCode));
-  const ready = serialOk && codeOk && Boolean(draft.city.trim()) && Boolean(draft.country.trim());
+  const denominationOk = denominations.includes(draft.denomination);
+  const ready = denominationOk && serialOk && codeOk && Boolean(draft.city.trim()) && Boolean(draft.country.trim());
   const total = useMemo(() => notes.reduce((sum, note) => sum + Number(note.denomination), 0), [notes]);
+  const followingScanTarget = nextScanTarget();
 
   function update(field: keyof ReturnType<typeof blankDraft>, value: string) {
     setDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
+  }
+
+  function labelFor(target: ScanTarget) {
+    return target === "denomination" ? "denomination" : target === "printerCode" ? "printer code" : "serial number";
+  }
+
+  function nextScanTarget(): ScanTarget {
+    if (!denominationOk) return "denomination";
+    if (!codeOk) return "printerCode";
+    return "serial";
   }
 
   useEffect(() => () => {
@@ -165,14 +177,21 @@ export default function EbtWeb() {
   }
 
   function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
-    const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
-    const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
     const readable = items.filter((item) => item.score >= 0.4 && item.poly.length > 0);
     const boxFor = (item: PaddleItem): ScanBox => {
       const x = item.poly.map(([pointX]) => pointX);
       const y = item.poly.map(([, pointY]) => pointY);
       return { x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) };
     };
+    if (target === "denomination") {
+      for (const item of readable) {
+        const value = [...item.text.matchAll(/(?:^|\D)(5|10|20|50|100|200|500)(?!\d)/g)].map((match) => match[1]).find((candidate) => denominations.includes(candidate));
+        if (value) return { value, boxes: [boxFor(item)] };
+      }
+      return null;
+    }
+    const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
+    const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
     const validFrom = (text: string) => (clean(text).match(matcher) ?? []).find(isValid);
 
     for (const item of readable) {
@@ -225,7 +244,7 @@ export default function EbtWeb() {
   function saveScanResult(target: ScanTarget, value: string) {
     update(target, value);
     stopCamera();
-    setMessage(target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
+    setMessage(target === "denomination" ? `€${value} detected. Now scan the printer code.` : target === "printerCode" ? `Printer code found: ${value}. Turn the note over and scan its serial number.` : `Serial number found: ${value}. Check the values, then add the note.`);
   }
 
   function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
@@ -279,7 +298,7 @@ export default function EbtWeb() {
         scanTimeoutRef.current = window.setTimeout(() => {
           if (!cameraActiveRef.current) return;
           stopCamera();
-          setMessage(`No valid Euro banknote ${target === "printerCode" ? "printer code" : "serial number"} found in 15 seconds. Centre the code inside the frame and try again.`);
+          setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
         }, 15000);
       }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
@@ -288,7 +307,7 @@ export default function EbtWeb() {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
         return;
       }
-      if (cameraActiveRef.current) setCameraHint(`Still looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
+      if (cameraActiveRef.current) setCameraHint(`Still looking for the ${labelFor(target)}…`);
     } catch {
       if (cameraActiveRef.current) setCameraHint("Could not read that view. Try more light or move closer.");
     } finally {
@@ -300,7 +319,7 @@ export default function EbtWeb() {
   async function openCamera(target: ScanTarget) {
     targetRef.current = target;
     setScanTarget(target);
-    setCameraHint(`Looking for the ${target === "printerCode" ? "printer code" : "serial number"}…`);
+    setCameraHint(`Looking for the ${labelFor(target)}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or choose a photo manually.");
       return;
@@ -323,13 +342,13 @@ export default function EbtWeb() {
     if (!image) return;
     stopCamera();
     setIsScanning(true);
-    setMessage(`Reading ${scanTarget === "printerCode" ? "printer code" : "serial number"}…`);
+    setMessage(`Reading ${labelFor(scanTarget)}…`);
     try {
       const ocr = await getOcr();
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
       const match = findValidCode(result?.items ?? [], scanTarget);
       if (match) saveScanResult(scanTarget, match.value);
-      else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${scanTarget === "printerCode" ? "printer code" : "serial number"}.`);
+      else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${labelFor(scanTarget)}.`);
     } catch {
       setMessage("The scan could not run. You can still enter the values manually.");
     } finally {
@@ -448,18 +467,26 @@ export default function EbtWeb() {
 
     {tab === "entry" && <section className="entry-panel">
       <input ref={fileInput} type="file" accept="image/*" capture="environment" onChange={scanPhoto} hidden />
-      <button className="scan" onClick={() => openCamera(draft.printerCode ? "serial" : "printerCode")} disabled={isScanning}>
-        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : draft.printerCode ? "Step 2 · Scan serial number" : "Step 1 · Scan printer code"}</span><small>LIVE OCR</small>
+      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
+      <div className="location-card">
+        <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
+        <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
+        <button className="text-button" onClick={saveLocation}>Remember this location</button>
+      </div>
+      <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
+
+      <button className="scan" onClick={() => openCamera(followingScanTarget)} disabled={isScanning}>
+        <span className="scan-icon">⌁</span><span>{isScanning ? "Scanning…" : followingScanTarget === "denomination" ? "Step 1 · Scan denomination" : followingScanTarget === "printerCode" ? "Step 2 · Scan printer code" : "Step 3 · Scan serial number"}</span><small>LIVE OCR</small>
       </button>
       <button className="photo-fallback" onClick={() => fileInput.current?.click()}>Use an existing photo instead</button>
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
-        <div className="camera-toolbar"><span>{scanResult ? `Valid ${scanResult.target === "printerCode" ? "printer code" : "serial number"} found` : `Scanning ${scanTarget === "printerCode" ? "printer code" : "serial number"}`}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
+        <div className="camera-toolbar"><span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `Scanning ${labelFor(scanTarget)}`}</span><button onClick={stopCamera} aria-label="Close camera">×</button></div>
         {scanResult ? <>
           <div className="camera-preview result-preview">
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : "Serial number checksum passed and was saved."}</small></div>
+          <div className="scan-success"><span>{scanResult.target === "denomination" ? "DENOMINATION DETECTED" : scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.target === "denomination" ? `€${scanResult.value}` : scanResult.value}</strong><small>{scanResult.target === "denomination" ? "Denomination saved. Now scan the printer code." : scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : "Serial number checksum passed and was saved."}</small></div>
           <button className="continue-scan" onClick={stopCamera}>Continue</button>
         </> : <>
           <div className="camera-preview">
@@ -475,23 +502,18 @@ export default function EbtWeb() {
 
       <div className="note-card">
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="denomination">Denomination <em>{denominationOk ? "detected" : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("denomination")}>Scan</button></div>
+          <input id="denomination" value={draft.denomination} onChange={(e) => update("denomination", e.target.value.replace(/[^0-9]/g, ""))} placeholder="Scan € amount" inputMode="numeric" />
+        </div>
+        <div className="field-row">
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
           <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 3"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
-        <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
       </div>
-
-      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
-      <div className="location-card">
-        <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
-        <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
-        <button className="text-button" onClick={saveLocation}>Remember this location</button>
-      </div>
-      <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
       <button className="save" onClick={addNote}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
