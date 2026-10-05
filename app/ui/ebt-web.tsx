@@ -71,6 +71,7 @@ export default function EbtWeb() {
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraFrameRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ocrRef = useRef<PaddleEngine | null>(null);
   const cameraActiveRef = useRef(false);
@@ -166,14 +167,42 @@ export default function EbtWeb() {
   function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
     const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
     const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
-    for (const item of items) {
-      if (item.score < 0.65) continue;
-      const candidates = clean(item.text).match(matcher) ?? [];
-      const valid = candidates.find(isValid);
-      if (valid) {
-        const x = item.poly.map(([pointX]) => pointX);
-        const y = item.poly.map(([, pointY]) => pointY);
-        return { value: valid, boxes: [{ x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) }] };
+    const readable = items.filter((item) => item.score >= 0.4 && item.poly.length > 0);
+    const boxFor = (item: PaddleItem): ScanBox => {
+      const x = item.poly.map(([pointX]) => pointX);
+      const y = item.poly.map(([, pointY]) => pointY);
+      return { x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) };
+    };
+    const validFrom = (text: string) => (clean(text).match(matcher) ?? []).find(isValid);
+
+    for (const item of readable) {
+      const valid = validFrom(item.text);
+      if (valid) return { value: valid, boxes: [boxFor(item)] };
+    }
+
+    // Printed codes are commonly detected as separate character groups. Join nearby
+    // groups on the same baseline, but still require the complete EBT validation.
+    const ordered = [...readable].sort((a, b) => {
+      const aBox = boxFor(a);
+      const bBox = boxFor(b);
+      const aMidY = (aBox.y0 + aBox.y1) / 2;
+      const bMidY = (bBox.y0 + bBox.y1) / 2;
+      return Math.abs(aMidY - bMidY) > Math.max(aBox.y1 - aBox.y0, bBox.y1 - bBox.y0) ? aMidY - bMidY : aBox.x0 - bBox.x0;
+    });
+    for (let start = 0; start < ordered.length; start += 1) {
+      const group = [ordered[start]];
+      const firstBox = boxFor(ordered[start]);
+      for (let end = start + 2; end <= Math.min(start + 4, ordered.length); end += 1) {
+        const previous = group[group.length - 1];
+        const previousBox = boxFor(previous);
+        const next = ordered[end - 1];
+        const nextBox = boxFor(next);
+        const sameLine = Math.abs(((previousBox.y0 + previousBox.y1) - (nextBox.y0 + nextBox.y1)) / 2) <= Math.max(previousBox.y1 - previousBox.y0, nextBox.y1 - nextBox.y0) * 1.5;
+        const closeEnough = nextBox.x0 - previousBox.x1 <= Math.max(firstBox.x1 - firstBox.x0, 80) * 1.5;
+        if (!sameLine || !closeEnough) break;
+        group.push(next);
+        const valid = validFrom(group.map((item) => item.text).join(""));
+        if (valid) return { value: valid, boxes: group.map(boxFor) };
       }
     }
     return null;
@@ -181,6 +210,7 @@ export default function EbtWeb() {
 
   async function getOcr() {
     if (!ocrRef.current) {
+      setCameraHint("Preparing on-device recognition…");
       const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
       ocrRef.current = await PaddleOCR.create({
         textDetectionModelName: "PP-OCRv6_tiny_det",
@@ -216,15 +246,31 @@ export default function EbtWeb() {
     const target = targetRef.current;
     try {
       const canvas = document.createElement("canvas");
-      const sourceWidth = videoRef.current.videoWidth;
-      const sourceHeight = videoRef.current.videoHeight;
-      const cropX = Math.floor(sourceWidth * 0.12);
-      const cropY = Math.floor(sourceHeight * 0.28);
-      const cropWidth = Math.floor(sourceWidth * 0.76);
-      const cropHeight = Math.floor(sourceHeight * 0.25);
+      const video = videoRef.current;
+      const sourceWidth = video.videoWidth;
+      const sourceHeight = video.videoHeight;
+      const videoBounds = video.getBoundingClientRect();
+      const guideBounds = cameraFrameRef.current?.getBoundingClientRect();
+      const scale = Math.max(videoBounds.width / sourceWidth, videoBounds.height / sourceHeight);
+      const renderedLeft = videoBounds.left + (videoBounds.width - sourceWidth * scale) / 2;
+      const renderedTop = videoBounds.top + (videoBounds.height - sourceHeight * scale) / 2;
+      const guideX = guideBounds ? (guideBounds.left - renderedLeft) / scale : sourceWidth * 0.12;
+      const guideY = guideBounds ? (guideBounds.top - renderedTop) / scale : sourceHeight * 0.28;
+      const guideWidth = guideBounds ? guideBounds.width / scale : sourceWidth * 0.76;
+      const guideHeight = guideBounds ? guideBounds.height / scale : sourceHeight * 0.25;
+      const horizontalPadding = guideWidth * 0.04;
+      const verticalPadding = guideHeight * 0.16;
+      const cropX = Math.max(0, Math.floor(guideX - horizontalPadding));
+      const cropY = Math.max(0, Math.floor(guideY - verticalPadding));
+      const cropWidth = Math.min(sourceWidth - cropX, Math.ceil(guideWidth + horizontalPadding * 2));
+      const cropHeight = Math.min(sourceHeight - cropY, Math.ceil(guideHeight + verticalPadding * 2));
       canvas.width = cropWidth;
       canvas.height = cropHeight;
-      canvas.getContext("2d")?.drawImage(videoRef.current, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Camera frame could not be prepared.");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
       const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
       if (!image || !cameraActiveRef.current) return;
       setCameraHint("Recognizing the guide area…");
@@ -236,7 +282,7 @@ export default function EbtWeb() {
           setMessage(`No valid Euro banknote ${target === "printerCode" ? "printer code" : "serial number"} found in 15 seconds. Centre the code inside the frame and try again.`);
         }, 15000);
       }
-      const [result] = await ocr.predict(image, { textDetLimitSideLen: 960, textRecScoreThresh: 0.65 });
+      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
@@ -260,7 +306,7 @@ export default function EbtWeb() {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
       streamRef.current = stream;
       cameraActiveRef.current = true;
       setPreviewReady(false);
@@ -280,7 +326,7 @@ export default function EbtWeb() {
     setMessage(`Reading ${scanTarget === "printerCode" ? "printer code" : "serial number"}…`);
     try {
       const ocr = await getOcr();
-      const [result] = await ocr.predict(image, { textDetLimitSideLen: 960, textRecScoreThresh: 0.65 });
+      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
       const match = findValidCode(result?.items ?? [], scanTarget);
       if (match) saveScanResult(scanTarget, match.value);
       else setMessage(`Nothing clear found. Try a closer, brighter photo of the ${scanTarget === "printerCode" ? "printer code" : "serial number"}.`);
@@ -420,7 +466,7 @@ export default function EbtWeb() {
             <video ref={videoRef} autoPlay playsInline muted />
             <span className="live-label"><i /> LIVE CAMERA</span>
             {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
-            <div className="camera-frame" aria-hidden="true" />
+            <div ref={cameraFrameRef} className="camera-frame" aria-hidden="true" />
           </div>
           <p className="camera-hint"><i /> {cameraHint}</p>
           <button className="choose-photo" onClick={() => { stopCamera(); fileInput.current?.click(); }}>Choose a photo instead</button>
