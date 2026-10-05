@@ -53,6 +53,67 @@ function isCodeValid(code: string) {
   return /^[A-Z]\d{3}[A-Z][1-9]$/.test(clean(code));
 }
 
+function hueDistance(first: number, second: number) {
+  return Math.min(Math.abs(first - second), 360 - Math.abs(first - second));
+}
+
+function detectDenominationFromColour(context: CanvasRenderingContext2D, width: number, height: number) {
+  const data = context.getImageData(0, 0, width, height).data;
+  const targets = [
+    { denomination: "10", hue: 5 },
+    { denomination: "20", hue: 210 },
+    { denomination: "50", hue: 28 },
+    { denomination: "100", hue: 105 },
+    { denomination: "200", hue: 52 },
+    { denomination: "500", hue: 300 }
+  ];
+  const scores = new Map(targets.map((target) => [target.denomination, 0]));
+  let colourWeight = 0;
+  let neutralWeight = 0;
+
+  for (let index = 0; index < data.length; index += 16) {
+    const red = data[index] / 255;
+    const green = data[index + 1] / 255;
+    const blue = data[index + 2] / 255;
+    const maximum = Math.max(red, green, blue);
+    const minimum = Math.min(red, green, blue);
+    const delta = maximum - minimum;
+    if (maximum < 0.18 || maximum > 0.93) continue;
+    const saturation = maximum === 0 ? 0 : delta / maximum;
+    const weight = 0.4 + maximum;
+    if (saturation < 0.2) {
+      neutralWeight += weight;
+      continue;
+    }
+
+    let hue = 0;
+    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (maximum === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+    if (hue < 0) hue += 360;
+
+    const saturatedWeight = weight * saturation;
+    colourWeight += saturatedWeight;
+    for (const target of targets) {
+      const similarity = Math.max(0, 1 - hueDistance(hue, target.hue) / 42);
+      scores.set(target.denomination, (scores.get(target.denomination) ?? 0) + saturatedWeight * similarity * similarity);
+    }
+  }
+
+  if (!colourWeight && !neutralWeight) return null;
+  const ranked = [...scores.entries()].sort((first, second) => second[1] - first[1]);
+  const [denomination, winner] = ranked[0];
+  const runnerUp = ranked[1][1];
+  const total = colourWeight + neutralWeight;
+  const neutralShare = neutralWeight / total;
+  const winnerShare = winner / colourWeight;
+  const margin = (winner - runnerUp) / colourWeight;
+
+  if (neutralShare > 0.72 && colourWeight / total < 0.28) return { denomination: "5", confidence: neutralShare };
+  if (winnerShare >= 0.42 && margin >= 0.1) return { denomination, confidence: Math.min(1, winnerShare + margin) };
+  return null;
+}
+
 export default function EbtWeb() {
   const [tab, setTab] = useState<Tab>("entry");
   const [draft, setDraft] = useState(blankDraft);
@@ -301,6 +362,14 @@ export default function EbtWeb() {
           setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
         }, 15000);
       }
+      if (target === "denomination") {
+        setCameraHint("Checking the banknote colour…");
+        const colourMatch = detectDenominationFromColour(context, canvas.width, canvas.height);
+        if (colourMatch && cameraActiveRef.current && target === targetRef.current) {
+          finishLiveScan(target, { value: colourMatch.denomination, boxes: [] }, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
+          return;
+        }
+      }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
@@ -319,7 +388,7 @@ export default function EbtWeb() {
   async function openCamera(target: ScanTarget) {
     targetRef.current = target;
     setScanTarget(target);
-    setCameraHint(`Looking for the ${labelFor(target)}…`);
+    setCameraHint(target === "denomination" ? "Fill the guide with the note’s large coloured area…" : `Looking for the ${labelFor(target)}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or choose a photo manually.");
       return;
