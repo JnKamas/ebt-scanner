@@ -298,6 +298,13 @@ export default function EbtWeb() {
     setMessage("Serial number saved. Review the note, then add it to the queue.");
   }
 
+  function redoLiveScan(target: ScanTarget) {
+    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = null;
+    setScanResult(null);
+    void openCamera(target);
+  }
+
   function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
@@ -543,7 +550,7 @@ export default function EbtWeb() {
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
           <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
-          <button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button>
+          <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview">
             <video ref={videoRef} autoPlay playsInline muted />
