@@ -157,6 +157,12 @@ export default function EbtWeb() {
     setDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
   }
 
+  function chooseDenomination(value: string) {
+    update("denomination", value);
+    // A value tap is the intentional start of a new capture flow.
+    void openCamera("printerCode");
+  }
+
   function labelFor(target: ScanTarget) {
     return target === "printerCode" ? "printer code" : "serial number";
   }
@@ -547,7 +553,7 @@ export default function EbtWeb() {
       </div>}
 
       <div className="note-card">
-        <div className="denominations" aria-label="Denomination">{denominations.map((value) => <button key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => update("denomination", value)}>€{value}</button>)}</div>
+        <div className="denominations" aria-label="Choose a denomination to scan the printer code">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value} and scan printer code`}>€{value}</button>)}</div>
         <div className="field-row">
           <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
           <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
