@@ -277,7 +277,7 @@ export default function EbtWeb() {
       if (!ocrLoadingRef.current) {
         ocrLoadingRef.current = (async () => {
           const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
-          return PaddleOCR.create({
+          const options = {
             textDetectionModelName: "PP-OCRv6_tiny_det",
             textRecognitionModelName: "PP-OCRv6_tiny_rec",
             worker: true,
@@ -291,7 +291,18 @@ export default function EbtWeb() {
               simd: true,
               wasmPaths: "/ocr/ort/"
             }
-          }) as Promise<PaddleEngine>;
+          };
+          try {
+            return await PaddleOCR.create(options) as PaddleEngine;
+          } catch (error) {
+            // WebKit on iPhone/iPad can reject module Workers even when it can
+            // run the identical WASM module on the page. Keep the normal worker
+            // path everywhere else, then use this on-device fallback only there.
+            const isAppleMobile = /iP(?:hone|ad|od)/.test(navigator.userAgent)
+              || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            if (!isAppleMobile) throw error;
+            return PaddleOCR.create({ ...options, worker: false }) as Promise<PaddleEngine>;
+          }
         })();
       }
       try {
