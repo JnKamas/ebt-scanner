@@ -26,7 +26,7 @@ type EbtAccount = {
 type Tab = "entry" | "queue" | "settings";
 type ScanTarget = "printerCode" | "serial";
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
-type ScanMatch = { value: string; boxes: ScanBox[] };
+type ScanMatch = { value: string; boxes: ScanBox[]; confidences: number[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
 type PaddleItem = { text: string; score: number; poly: Array<[number, number]> };
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
@@ -74,6 +74,8 @@ export default function EbtWeb() {
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [autoQueueNext, setAutoQueueNext] = useState(false);
+  const [printerConfidence, setPrinterConfidence] = useState(0);
+  const [serialConfidence, setSerialConfidence] = useState(0);
   const draftRef = useRef(draft);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
@@ -115,6 +117,10 @@ export default function EbtWeb() {
     const savedSeconds = Number(window.localStorage.getItem("ebt-web-result-display-seconds"));
     if (Number.isFinite(savedSeconds) && savedSeconds >= 1 && savedSeconds <= 15) setResultDisplaySeconds(savedSeconds);
     setAutoQueueNext(window.localStorage.getItem("ebt-web-auto-queue-next") === "true");
+    const savedPrinterConfidence = Number(window.localStorage.getItem("ebt-web-printer-confidence"));
+    if (Number.isFinite(savedPrinterConfidence) && savedPrinterConfidence >= 0 && savedPrinterConfidence <= 1) setPrinterConfidence(savedPrinterConfidence);
+    const savedSerialConfidence = Number(window.localStorage.getItem("ebt-web-serial-confidence"));
+    if (Number.isFinite(savedSerialConfidence) && savedSerialConfidence >= 0 && savedSerialConfidence <= 1) setSerialConfidence(savedSerialConfidence);
   }, []);
 
   useEffect(() => {
@@ -124,6 +130,14 @@ export default function EbtWeb() {
   useEffect(() => {
     window.localStorage.setItem("ebt-web-auto-queue-next", String(autoQueueNext));
   }, [autoQueueNext]);
+
+  useEffect(() => {
+    window.localStorage.setItem("ebt-web-printer-confidence", String(printerConfidence));
+  }, [printerConfidence]);
+
+  useEffect(() => {
+    window.localStorage.setItem("ebt-web-serial-confidence", String(serialConfidence));
+  }, [serialConfidence]);
 
   useEffect(() => {
     void fetch("/api/ebt/session", { cache: "no-store" })
@@ -209,7 +223,10 @@ export default function EbtWeb() {
   }
 
   function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
-    const readable = items.filter((item) => item.score >= 0.4 && item.poly.length > 0);
+    const minimumConfidence = target === "printerCode" ? printerConfidence : serialConfidence;
+    // We request all results from PaddleOCR, then apply the user-selected
+    // threshold here so the actual score remains visible for debugging.
+    const readable = items.filter((item) => item.score >= minimumConfidence && item.poly.length > 0);
     const boxFor = (item: PaddleItem): ScanBox => {
       const x = item.poly.map(([pointX]) => pointX);
       const y = item.poly.map(([, pointY]) => pointY);
@@ -221,7 +238,7 @@ export default function EbtWeb() {
 
     for (const item of readable) {
       const valid = validFrom(item.text);
-      if (valid) return { value: valid, boxes: [boxFor(item)] };
+      if (valid) return { value: valid, boxes: [boxFor(item)], confidences: [item.score] };
     }
 
     // Printed codes are commonly detected as separate character groups. Join nearby
@@ -246,7 +263,7 @@ export default function EbtWeb() {
         if (!sameLine || !closeEnough) break;
         group.push(next);
         const valid = validFrom(group.map((item) => item.text).join(""));
-        if (valid) return { value: valid, boxes: group.map(boxFor) };
+        if (valid) return { value: valid, boxes: group.map(boxFor), confidences: group.map((item) => item.score) };
       }
     }
     return null;
@@ -365,7 +382,7 @@ export default function EbtWeb() {
           setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
         }, 15000);
       }
-      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0.4 });
+      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && target === targetRef.current) {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
@@ -539,7 +556,7 @@ export default function EbtWeb() {
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
           <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview">
@@ -574,7 +591,7 @@ export default function EbtWeb() {
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings"><label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings"><label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="confidence-setting"><span>Printer-code minimum confidence <b>{Math.round(printerConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(printerConfidence * 100)} onChange={(event) => setPrinterConfidence(Number(event.target.value) / 100)} /></label><label className="confidence-setting"><span>Serial-number minimum confidence <b>{Math.round(serialConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(serialConfidence * 100)} onChange={(event) => setSerialConfidence(Number(event.target.value) / 100)} /></label><small>0% accepts every OCR score; format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
   </main>;
