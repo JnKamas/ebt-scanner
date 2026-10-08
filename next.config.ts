@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: { optimizePackageImports: ["@paddleocr/paddleocr-js"] },
   async headers() {
     return [{
       source: "/ocr/:path*",

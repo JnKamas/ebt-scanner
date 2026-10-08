@@ -66,6 +66,7 @@ export default function EbtWeb() {
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<OcrStatus>("loading");
+  const [ocrError, setOcrError] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
@@ -272,6 +273,7 @@ export default function EbtWeb() {
   async function getOcr() {
     if (!ocrRef.current) {
       setOcrStatus("loading");
+      setOcrError("");
       if (!ocrLoadingRef.current) {
         ocrLoadingRef.current = (async () => {
           const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
@@ -298,6 +300,7 @@ export default function EbtWeb() {
       } catch (error) {
         ocrLoadingRef.current = null;
         setOcrStatus("error");
+        setOcrError(error instanceof Error ? error.message : "Unknown OCR initialization error.");
         throw error;
       }
     }
@@ -530,7 +533,7 @@ export default function EbtWeb() {
     </header>
 
     {ocrStatus !== "ready" && <section className={`ocr-progress ${ocrStatus === "error" ? "ocr-progress-error" : ""}`} role="status" aria-live="polite">
-      <div><strong>{ocrStatus === "error" ? "Scanner could not prepare" : "Preparing scanner"}</strong><span>{ocrStatus === "error" ? "Check your connection, then try again." : "Loading on-device text recognition. Scanning will unlock when it is ready."}</span></div>
+      <div><strong>{ocrStatus === "error" ? "Scanner could not prepare" : "Preparing scanner"}</strong><span>{ocrStatus === "error" ? ocrError || "Check your connection, then try again." : "Loading on-device text recognition. Scanning will unlock when it is ready."}</span></div>
       {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
     </section>}
 
