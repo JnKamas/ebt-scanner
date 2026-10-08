@@ -4,6 +4,8 @@ html { background:#e9eff0; }
 body { margin:0; color:var(--ink); background:#eef3f3; font-family:Arial, Helvetica, sans-serif; -webkit-font-smoothing:antialiased; }
 button, input, textarea { font:inherit; }
 button { cursor:pointer; }
+.ocr-progress { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; margin:0 0 18px; padding:12px 14px; border:1px solid #bfe7dc; border-radius:12px; background:#effbf7; color:#174d46; }.ocr-progress div { display:grid; gap:3px; }.ocr-progress strong { font-size:12px; }.ocr-progress span { font-size:11px; line-height:1.3; }.ocr-progress i { width:72px; height:6px; overflow:hidden; border-radius:99px; background:#cce9e1; }.ocr-progress i b { display:block; width:46%; height:100%; border-radius:inherit; background:var(--mint-dark); animation:ocr-loading 1.05s ease-in-out infinite; }.ocr-progress-error { border-color:#f0c6bb; background:#fff3f0; color:#914332; }.ocr-progress button { border:0; border-radius:7px; padding:7px 9px; background:#f6d9d1; color:#914332; font-size:11px; font-weight:800; }@keyframes ocr-loading { from { transform:translateX(-115%); } to { transform:translateX(250%); } }
+.field-scan:disabled { cursor:wait; opacity:.5; }
 .shell { width:100%; min-height:100dvh; max-width:540px; margin:0 auto; padding:env(safe-area-inset-top) 20px calc(88px + env(safe-area-inset-bottom)); background:#fbfcfc; }
 .topbar { height:66px; display:flex; align-items:center; }
 .brand { color:var(--navy); font-size:20px; letter-spacing:-.6px; font-weight:500; display:flex; gap:8px; align-items:center; }.brand b { color:var(--mint-dark); }.brand-mark { display:grid; place-items:center; width:27px; height:27px; border-radius:9px; background:var(--navy); color:var(--mint); font-weight:700; }

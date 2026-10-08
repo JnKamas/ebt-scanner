@@ -30,6 +30,7 @@ type ScanMatch = { value: string; boxes: ScanBox[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
 type PaddleItem = { text: string; score: number; poly: Array<[number, number]> };
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
+type OcrStatus = "loading" | "ready" | "error";
 
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
 const blankDraft = () => ({ serial: "", printerCode: "", denomination: "", country: "", city: "", postalCode: "", comment: "" });
@@ -64,6 +65,7 @@ export default function EbtWeb() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState<OcrStatus>("loading");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
@@ -131,18 +133,9 @@ export default function EbtWeb() {
   }, []);
 
   useEffect(() => {
-    // Let the entry screen paint first. OCR then prepares in its own worker while
-    // the app is idle, so opening the camera normally has no model-start delay.
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    if (idleWindow.requestIdleCallback) {
-      const handle = idleWindow.requestIdleCallback(() => void getOcr().catch(() => undefined), { timeout: 2000 });
-      return () => idleWindow.cancelIdleCallback?.(handle);
-    }
-    const warmUp = window.setTimeout(() => void getOcr().catch(() => undefined), 500);
-    return () => window.clearTimeout(warmUp);
+    // Create the OCR worker on every app opening. Model files may come from the
+    // browser cache after the first visit, but this page still needs a ready engine.
+    void getOcr().catch(() => undefined);
   }, []);
 
   const serialOk = isSerialValid(clean(draft.serial));
@@ -158,8 +151,6 @@ export default function EbtWeb() {
 
   function chooseDenomination(value: string) {
     update("denomination", value);
-    // A value tap is the intentional start of a new capture flow.
-    void openCamera("printerCode");
   }
 
   function labelFor(target: ScanTarget) {
@@ -263,6 +254,7 @@ export default function EbtWeb() {
 
   async function getOcr() {
     if (!ocrRef.current) {
+      setOcrStatus("loading");
       if (!ocrLoadingRef.current) {
         ocrLoadingRef.current = (async () => {
           const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
@@ -285,8 +277,10 @@ export default function EbtWeb() {
       }
       try {
         ocrRef.current = await ocrLoadingRef.current;
+        setOcrStatus("ready");
       } catch (error) {
         ocrLoadingRef.current = null;
+        setOcrStatus("error");
         throw error;
       }
     }
@@ -387,6 +381,10 @@ export default function EbtWeb() {
   }
 
   async function openCamera(target: ScanTarget) {
+    if (!ocrRef.current) {
+      setMessage(ocrStatus === "error" ? "Scanner preparation failed. Try preparing it again." : "Scanner is still preparing. Please wait a moment.");
+      return;
+    }
     targetRef.current = target;
     setScanTarget(target);
     setCameraHint(`Looking for the ${labelFor(target)}…`);
@@ -514,6 +512,11 @@ export default function EbtWeb() {
       <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Web</b></span></div>
     </header>
 
+    {ocrStatus !== "ready" && <section className={`ocr-progress ${ocrStatus === "error" ? "ocr-progress-error" : ""}`} role="status" aria-live="polite">
+      <div><strong>{ocrStatus === "error" ? "Scanner could not prepare" : "Preparing scanner"}</strong><span>{ocrStatus === "error" ? "Check your connection, then try again." : "Loading on-device text recognition. Scanning will unlock when it is ready."}</span></div>
+      {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
+    </section>}
+
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
       <div className="location-card">
@@ -550,13 +553,13 @@ export default function EbtWeb() {
       </div>}
 
       <div className="note-card">
-        <div className="denominations" aria-label="Choose a denomination to scan the printer code">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value} and scan printer code`}>€{value}</button>)}</div>
+        <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={ocrStatus !== "ready" || isScanning}>Scan</button></div>
           <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={ocrStatus !== "ready" || isScanning}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
