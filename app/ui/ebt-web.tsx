@@ -74,6 +74,7 @@ export default function EbtWeb() {
   const [previewReady, setPreviewReady] = useState(false);
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
+  const [resultSecondsRemaining, setResultSecondsRemaining] = useState(0);
   const [autoQueueNext, setAutoQueueNext] = useState(false);
   const [printerConfidence, setPrinterConfidence] = useState(0);
   const [serialConfidence, setSerialConfidence] = useState(0);
@@ -88,6 +89,7 @@ export default function EbtWeb() {
   const readingFrameRef = useRef(false);
   const scanTimeoutRef = useRef<number | null>(null);
   const resultTimeoutRef = useRef<number | null>(null);
+  const resultCountdownRef = useRef<number | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -176,6 +178,7 @@ export default function EbtWeb() {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
+    if (resultCountdownRef.current) window.clearInterval(resultCountdownRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     ocrRef.current?.dispose();
   }, []);
@@ -213,14 +216,21 @@ export default function EbtWeb() {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     scanTimeoutRef.current = null;
-    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
-    resultTimeoutRef.current = null;
+    clearResultCountdown();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult(null);
+  }
+
+  function clearResultCountdown() {
+    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = null;
+    if (resultCountdownRef.current) window.clearInterval(resultCountdownRef.current);
+    resultCountdownRef.current = null;
+    setResultSecondsRemaining(0);
   }
 
   function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
@@ -319,8 +329,7 @@ export default function EbtWeb() {
   }
 
   function advanceFromLiveResult(target: ScanTarget) {
-    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
-    resultTimeoutRef.current = null;
+    clearResultCountdown();
     setScanResult(null);
     if (target === "printerCode") {
       void openCamera("serial");
@@ -335,8 +344,7 @@ export default function EbtWeb() {
   }
 
   function redoLiveScan(target: ScanTarget) {
-    if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
-    resultTimeoutRef.current = null;
+    clearResultCountdown();
     setScanResult(null);
     void openCamera(target);
   }
@@ -351,6 +359,11 @@ export default function EbtWeb() {
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult({ ...match, target, image, width, height });
+    const finishAt = Date.now() + resultDisplaySeconds * 1000;
+    setResultSecondsRemaining(resultDisplaySeconds);
+    resultCountdownRef.current = window.setInterval(() => {
+      setResultSecondsRemaining(Math.max(0, Math.ceil((finishAt - Date.now()) / 1000)));
+    }, 200);
     resultTimeoutRef.current = window.setTimeout(() => advanceFromLiveResult(target), resultDisplaySeconds * 1000);
   }
 
@@ -566,11 +579,11 @@ export default function EbtWeb() {
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
         {scanResult ? <>
-          <div className="camera-preview result-preview">
+          <div className="camera-preview result-preview" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}` }}>
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultDisplaySeconds}s.</small></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultSecondsRemaining}s.</small></div>
           <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview">
