@@ -8,8 +8,12 @@ const nextConfig: NextConfig = {
     }];
   },
   webpack: (config) => {
-    // Use ONNX Runtime's external-WASM build. Its bundled build may choose the
-    // newer JSEP module variant, which is not importable in every browser.
+    // Use ONNX Runtime's WASM-only export. Its default bundle may choose the
+    // JSEP module variant, which is not importable in every mobile browser.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "onnxruntime-web$": "onnxruntime-web/wasm"
+    };
     const conditions = config.resolve.conditionNames ?? [];
     config.resolve.conditionNames = conditions.includes("onnxruntime-web-use-extern-wasm")
       ? conditions

@@ -289,7 +289,7 @@ export default function EbtWeb() {
               // One predictable SIMD runtime is quicker to start and works everywhere.
               numThreads: 1,
               simd: true,
-              wasmPaths: "/ocr/ort/"
+              wasmPaths: "/ocr/ort-1.24.3/"
             }
           };
           try {
