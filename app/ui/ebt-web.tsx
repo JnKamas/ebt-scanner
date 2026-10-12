@@ -168,6 +168,7 @@ export default function EbtWeb() {
 
   function chooseDenomination(value: string) {
     update("denomination", value);
+    void openCamera("printerCode");
   }
 
   function labelFor(target: ScanTarget) {
