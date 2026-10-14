@@ -168,7 +168,6 @@ export default function EbtWeb() {
 
   function chooseDenomination(value: string) {
     update("denomination", value);
-    void openCamera("printerCode");
   }
 
   function labelFor(target: ScanTarget) {
@@ -305,13 +304,13 @@ export default function EbtWeb() {
           };
           try {
             return await PaddleOCR.create(options) as PaddleEngine;
-          } catch (error) {
-            // WebKit on iPhone/iPad can reject module Workers even when it can
-            // run the identical WASM module on the page. Keep the normal worker
-            // path everywhere else, then use this on-device fallback only there.
-            const isAppleMobile = /iP(?:hone|ad|od)/.test(navigator.userAgent)
-              || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-            if (!isAppleMobile) throw error;
+          } catch {
+            // PaddleOCR's prebuilt worker carries the JSEP ONNX runtime. Some
+            // Android and Windows browsers request that extra module even when
+            // the app is configured for the ordinary WASM backend. Run the same
+            // browser-side engine on the page when that worker cannot start.
+            // This is also the reliable path used by iOS, and keeps OCR entirely
+            // local while retaining the worker fast path where it is available.
             return PaddleOCR.create({ ...options, worker: false }) as Promise<PaddleEngine>;
           }
         })();
