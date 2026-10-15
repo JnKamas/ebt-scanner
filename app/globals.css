@@ -1,5 +1,6 @@
 :root { --navy:#071b2e; --ink:#10253a; --muted:#657486; --line:#dbe3e7; --soft:#f4f7f7; --mint:#32c5a3; --mint-dark:#15977a; --coral:#ff8365; }
 * { box-sizing:border-box; }
+.camera-picker { display:flex; width:min(920px,100%); margin:10px auto 0; align-items:center; justify-content:space-between; gap:12px; color:#a9c3c7; font-size:11px; font-weight:700; }.camera-picker span::before { content:"EXPERIMENT"; margin-right:7px; color:#57dfbd; font-size:9px; letter-spacing:.8px; }.camera-picker select { max-width:68%; border:1px solid #6c8790; border-radius:8px; padding:7px 28px 7px 9px; color:#edf8f6; background:#102b37; font-size:12px; font-weight:700; }.camera-picker select:disabled { opacity:.6; }
 html { background:#e9eff0; }
 body { margin:0; color:var(--ink); background:#eef3f3; font-family:Arial, Helvetica, sans-serif; -webkit-font-smoothing:antialiased; }
 button, input, textarea { font:inherit; }
