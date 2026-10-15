@@ -69,9 +69,6 @@ export default function EbtWeb() {
   const [ocrError, setOcrError] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
-  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
-  const [activeCameraId, setActiveCameraId] = useState("");
-  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const [scanTarget, setScanTarget] = useState<ScanTarget>("printerCode");
   const [cameraHint, setCameraHint] = useState("");
   const [previewReady, setPreviewReady] = useState(false);
@@ -88,7 +85,6 @@ export default function EbtWeb() {
   const ocrRef = useRef<PaddleEngine | null>(null);
   const ocrLoadingRef = useRef<Promise<PaddleEngine> | null>(null);
   const cameraActiveRef = useRef(false);
-  const cameraRunRef = useRef(0);
   const targetRef = useRef<ScanTarget>("printerCode");
   const readingFrameRef = useRef(false);
   const scanTimeoutRef = useRef<number | null>(null);
@@ -217,7 +213,6 @@ export default function EbtWeb() {
   }, [cameraOpen, cameraSession]);
 
   function stopCamera() {
-    cameraRunRef.current += 1;
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     scanTimeoutRef.current = null;
@@ -228,9 +223,6 @@ export default function EbtWeb() {
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult(null);
-    setCameraDevices([]);
-    setActiveCameraId("");
-    setIsSwitchingCamera(false);
   }
 
   function clearResultCountdown() {
@@ -379,7 +371,6 @@ export default function EbtWeb() {
     if (!cameraActiveRef.current || readingFrameRef.current || !videoRef.current?.videoWidth) return;
     readingFrameRef.current = true;
     const target = targetRef.current;
-    const cameraRun = cameraRunRef.current;
     try {
       const canvas = document.createElement("canvas");
       const video = videoRef.current;
@@ -408,20 +399,19 @@ export default function EbtWeb() {
       context.imageSmoothingQuality = "high";
       context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
       const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-      if (!image || !cameraActiveRef.current || cameraRun !== cameraRunRef.current) return;
+      if (!image || !cameraActiveRef.current) return;
       setCameraHint(ocrRef.current ? "Recognizing the guide area…" : "Preparing on-device recognition…");
       const ocr = await getOcr();
-      if (!cameraActiveRef.current || cameraRun !== cameraRunRef.current) return;
       if (!scanTimeoutRef.current) {
         scanTimeoutRef.current = window.setTimeout(() => {
-          if (!cameraActiveRef.current || cameraRun !== cameraRunRef.current) return;
+          if (!cameraActiveRef.current) return;
           stopCamera();
           setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
         }, 15000);
       }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
-      if (match && cameraActiveRef.current && cameraRun === cameraRunRef.current && target === targetRef.current) {
+      if (match && cameraActiveRef.current && target === targetRef.current) {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
         return;
       }
@@ -434,19 +424,7 @@ export default function EbtWeb() {
     }
   }
 
-  async function updateCameraDevices(currentCameraId: string) {
-    try {
-      const videoInputs = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput");
-      const nonFrontCameras = videoInputs.filter((device) => !/\b(front|user|selfie)\b/i.test(device.label));
-      const currentCamera = videoInputs.find((device) => device.deviceId === currentCameraId);
-      const rearCameras = nonFrontCameras.length ? nonFrontCameras : videoInputs;
-      setCameraDevices(currentCamera && !rearCameras.some((device) => device.deviceId === currentCamera.deviceId) ? [currentCamera, ...rearCameras] : rearCameras);
-    } catch {
-      setCameraDevices([]);
-    }
-  }
-
-  async function openCamera(target: ScanTarget, cameraDeviceId?: string) {
+  async function openCamera(target: ScanTarget) {
     if (!ocrRef.current) {
       setMessage(ocrStatus === "error" ? "Scanner preparation failed. Try preparing it again." : "Scanner is still preparing. Please wait a moment.");
       return;
@@ -458,26 +436,9 @@ export default function EbtWeb() {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or enter the values manually.");
       return;
     }
-    const cameraRun = cameraRunRef.current + 1;
-    cameraRunRef.current = cameraRun;
-    cameraActiveRef.current = false;
-    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
-    scanTimeoutRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
     try {
-      const video: MediaTrackConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
-      if (cameraDeviceId) video.deviceId = { exact: cameraDeviceId };
-      else video.facingMode = { ideal: "environment" };
-      const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
-      if (cameraRun !== cameraRunRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
       streamRef.current = stream;
-      const currentCameraId = stream.getVideoTracks()[0]?.getSettings().deviceId ?? cameraDeviceId ?? "";
-      setActiveCameraId(currentCameraId);
-      void updateCameraDevices(currentCameraId);
       cameraActiveRef.current = true;
       setPreviewReady(false);
       setScanResult(null);
@@ -488,13 +449,6 @@ export default function EbtWeb() {
     } catch {
       setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
     }
-  }
-
-  async function switchCamera(cameraDeviceId: string) {
-    if (!cameraDeviceId || cameraDeviceId === activeCameraId || isSwitchingCamera) return;
-    setIsSwitchingCamera(true);
-    await openCamera(scanTarget, cameraDeviceId);
-    setIsSwitchingCamera(false);
   }
 
   function useLocation() {
@@ -638,7 +592,6 @@ export default function EbtWeb() {
             {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
             <div ref={cameraFrameRef} className="camera-frame" aria-hidden="true" />
           </div>
-          {cameraDevices.length > 1 && <label className="camera-picker"><span>Experimental rear lens</span><select value={activeCameraId || cameraDevices[0].deviceId} onChange={(event) => void switchCamera(event.target.value)} disabled={isSwitchingCamera}>{cameraDevices.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `Rear camera ${index + 1}`}</option>)}</select></label>}
           <p className="camera-hint"><i /> {cameraHint}</p>
         </>}
       </div>}
