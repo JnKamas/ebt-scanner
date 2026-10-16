@@ -25,6 +25,8 @@ type EbtAccount = {
 
 type Tab = "entry" | "queue" | "settings";
 type ScanTarget = "printerCode" | "serial";
+type CameraPreference = { deviceId: string; closeUp: boolean };
+const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "", closeUp: false }, serial: { deviceId: "", closeUp: false } });
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 type ScanMatch = { value: string; boxes: ScanBox[]; confidences: number[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
@@ -76,6 +78,14 @@ export default function EbtWeb() {
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [resultSecondsRemaining, setResultSecondsRemaining] = useState(0);
   const [autoQueueNext, setAutoQueueNext] = useState(false);
+  const [reusePrinterCode, setReusePrinterCode] = useState(false);
+  const [cameraPreferences, setCameraPreferences] = useState(defaultCameras);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [cameraPending, setCameraPending] = useState(false);
+  const [cameraPreviewOnly, setCameraPreviewOnly] = useState(false);
+  const previewOnlyRef = useRef(false);
+  const cameraRequestRef = useRef(0);
   const [printerConfidence, setPrinterConfidence] = useState(0);
   const [serialConfidence, setSerialConfidence] = useState(0);
   const draftRef = useRef(draft);
@@ -124,7 +134,42 @@ export default function EbtWeb() {
     if (Number.isFinite(savedPrinterConfidence) && savedPrinterConfidence >= 0 && savedPrinterConfidence <= 1) setPrinterConfidence(savedPrinterConfidence);
     const savedSerialConfidence = Number(window.localStorage.getItem("ebt-web-serial-confidence"));
     if (Number.isFinite(savedSerialConfidence) && savedSerialConfidence >= 0 && savedSerialConfidence <= 1) setSerialConfidence(savedSerialConfidence);
+    setReusePrinterCode(window.localStorage.getItem("ebt-web-reuse-printer-code") === "true");
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("ebt-web-cameras") || "null");
+      if (saved) setCameraPreferences(Object.fromEntries((["printerCode", "serial"] as const).map((target) => [target, {
+        deviceId: typeof saved[target]?.deviceId === "string" ? saved[target].deviceId : "",
+        closeUp: saved[target]?.closeUp === true,
+      }])) as Record<ScanTarget, CameraPreference>);
+    } catch { /* Ignore an invalid saved camera preference. */ }
+    setPreferencesReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!preferencesReady) return;
+    window.localStorage.setItem("ebt-web-cameras", JSON.stringify(cameraPreferences));
+    window.localStorage.setItem("ebt-web-reuse-printer-code", String(reusePrinterCode));
+  }, [cameraPreferences, reusePrinterCode, preferencesReady]);
+
+  useEffect(() => {
+    // Listing devices never asks for camera permission. Labels appear after Scan.
+    void refreshCameras();
+    navigator.mediaDevices?.addEventListener("devicechange", refreshCameras);
+    return () => navigator.mediaDevices?.removeEventListener("devicechange", refreshCameras);
+  }, []);
+
+  async function refreshCameras() {
+    try {
+      const devices = await navigator.mediaDevices?.enumerateDevices();
+      const available = devices?.filter((device) => device.kind === "videoinput" && device.deviceId) ?? [];
+      setCameras(available);
+      return available;
+    } catch { return []; }
+  }
+
+  function updateCameraPreference(target: ScanTarget, change: Partial<CameraPreference>) {
+    setCameraPreferences((current) => ({ ...current, [target]: { ...current[target], ...change } }));
+  }
 
   useEffect(() => {
     window.localStorage.setItem("ebt-web-result-display-seconds", String(resultDisplaySeconds));
@@ -167,7 +212,8 @@ export default function EbtWeb() {
   }
 
   function chooseDenomination(value: string) {
-    update("denomination", value);
+    // A printer code belongs to one denomination; start a new batch when it changes.
+    setDraft((current) => ({ ...current, denomination: value, printerCode: reusePrinterCode && current.denomination !== value ? "" : current.printerCode }));
   }
 
   function labelFor(target: ScanTarget) {
@@ -175,6 +221,7 @@ export default function EbtWeb() {
   }
 
   useEffect(() => () => {
+    cameraRequestRef.current += 1;
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current);
@@ -194,7 +241,12 @@ export default function EbtWeb() {
         await video.play();
         if (!cancelled) {
           setPreviewReady(true);
-          void readFrame();
+          if (previewOnlyRef.current) {
+            scanTimeoutRef.current = window.setTimeout(() => {
+              stopCamera();
+              setMessage("Camera preview finished. Your camera choice is saved; no note values were changed.");
+            }, 15000);
+          } else void readFrame();
         }
       } catch {
         if (!cancelled) setCameraHint("The webcam started, but its preview could not play. Try closing and scanning again.");
@@ -213,6 +265,8 @@ export default function EbtWeb() {
   }, [cameraOpen, cameraSession]);
 
   function stopCamera() {
+    cameraRequestRef.current += 1;
+    setCameraPending(false);
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
     scanTimeoutRef.current = null;
@@ -336,7 +390,7 @@ export default function EbtWeb() {
       return;
     }
     if (autoQueueNext && addNote(true)) {
-      void openCamera("printerCode");
+      void openCamera(reusePrinterCode ? "serial" : "printerCode");
       return;
     }
     stopCamera();
@@ -355,6 +409,7 @@ export default function EbtWeb() {
     scanTimeoutRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    draftRef.current = { ...draftRef.current, [target]: match.value };
     update(target, match.value);
     setIsScanning(false);
     setPreviewReady(false);
@@ -370,6 +425,7 @@ export default function EbtWeb() {
   async function readFrame() {
     if (!cameraActiveRef.current || readingFrameRef.current || !videoRef.current?.videoWidth) return;
     readingFrameRef.current = true;
+    const request = cameraRequestRef.current;
     const target = targetRef.current;
     try {
       const canvas = document.createElement("canvas");
@@ -399,9 +455,10 @@ export default function EbtWeb() {
       context.imageSmoothingQuality = "high";
       context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
       const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-      if (!image || !cameraActiveRef.current) return;
+      if (!image || !cameraActiveRef.current || request !== cameraRequestRef.current) return;
       setCameraHint(ocrRef.current ? "Recognizing the guide area…" : "Preparing on-device recognition…");
       const ocr = await getOcr();
+      if (!cameraActiveRef.current || request !== cameraRequestRef.current) return;
       if (!scanTimeoutRef.current) {
         scanTimeoutRef.current = window.setTimeout(() => {
           if (!cameraActiveRef.current) return;
@@ -411,21 +468,22 @@ export default function EbtWeb() {
       }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
-      if (match && cameraActiveRef.current && target === targetRef.current) {
+      if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
         finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
         return;
       }
-      if (cameraActiveRef.current) setCameraHint(`Still looking for the ${labelFor(target)}…`);
+      if (cameraActiveRef.current && request === cameraRequestRef.current) setCameraHint(`Still looking for the ${labelFor(target)}…`);
     } catch {
-      if (cameraActiveRef.current) setCameraHint("Could not read that view. Try more light or move closer.");
+      if (cameraActiveRef.current && request === cameraRequestRef.current) setCameraHint("Could not read that view. Try more light or move closer.");
     } finally {
       readingFrameRef.current = false;
-      if (cameraActiveRef.current) window.setTimeout(() => void readFrame(), 350);
+      if (cameraActiveRef.current && !previewOnlyRef.current) window.setTimeout(() => void readFrame(), 350);
     }
   }
 
-  async function openCamera(target: ScanTarget) {
-    if (!ocrRef.current) {
+  async function openCamera(target: ScanTarget, previewOnly = false) {
+    if (cameraPending) return;
+    if (!previewOnly && !ocrRef.current) {
       setMessage(ocrStatus === "error" ? "Scanner preparation failed. Try preparing it again." : "Scanner is still preparing. Please wait a moment.");
       return;
     }
@@ -436,9 +494,44 @@ export default function EbtWeb() {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or enter the values manually.");
       return;
     }
+    stopCamera();
+    const request = ++cameraRequestRef.current;
+    setCameraPending(true);
+    previewOnlyRef.current = previewOnly;
+    setCameraPreviewOnly(previewOnly);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+      const preference = cameraPreferences[target];
+      let available = await refreshCameras();
+      if (request !== cameraRequestRef.current) return;
+      let deviceId = preference.deviceId;
+      const closeUpCamera = (devices: MediaDeviceInfo[]) => devices.find((device) => /macro|ultra[\s-]?wide|back.*0[.,]5|zadn.*ultra/i.test(device.label));
+      if (!deviceId && preference.closeUp) deviceId = closeUpCamera(available)?.deviceId ?? "";
+      const constraints = (id: string): MediaStreamConstraints => ({ video: {
+        ...(id ? { deviceId: { exact: id } } : { facingMode: { ideal: "environment" } }),
+        width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },
+      }, audio: false });
+      let stream: MediaStream;
+      let fallback = false;
+      try { stream = await navigator.mediaDevices.getUserMedia(constraints(deviceId)); }
+      catch (error) {
+        if (!deviceId || !(error instanceof DOMException) || !["OverconstrainedError", "NotFoundError"].includes(error.name)) throw error;
+        fallback = true;
+        stream = await navigator.mediaDevices.getUserMedia(constraints(""));
+      }
+      if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
+      available = await refreshCameras();
+      if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
+      // The first permission grant may reveal a close-up lens that was hidden.
+      const revealedCloseUp = !preference.deviceId && preference.closeUp ? closeUpCamera(available) : undefined;
+      if (revealedCloseUp && revealedCloseUp.deviceId !== stream.getVideoTracks()[0]?.getSettings().deviceId) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = await navigator.mediaDevices.getUserMedia(constraints(revealedCloseUp.deviceId));
+      }
+      if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
+      streamRef.current = stream;
+      const activeLabel = stream.getVideoTracks()[0]?.label || "Camera";
+      setCameraHint(`${activeLabel}. ${fallback ? "Saved camera unavailable; using the default. " : ""}${preference.closeUp && !preference.deviceId && !revealedCloseUp ? "No labelled macro camera exposed; try a camera in Settings. " : ""}${previewOnly ? "Check close-up focus. Preview closes after 15 seconds; no codes are saved." : `Centre the ${labelFor(target)} inside the guide.`}`);
       cameraActiveRef.current = true;
       setPreviewReady(false);
       setScanResult(null);
@@ -446,8 +539,15 @@ export default function EbtWeb() {
       setCameraSession((current) => current + 1);
       setIsScanning(true);
       setMessage("");
-    } catch {
-      setMessage("Camera access was blocked. Click the camera icon in your browser address bar and allow this site to use your camera, then try again.");
+    } catch (error) {
+      if (request !== cameraRequestRef.current) return;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setMessage(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "Camera access was blocked. Allow this site to use your camera in browser settings, then click Scan again."
+        : "Could not start this camera. Close other camera apps or choose another camera in Settings, then click Scan again.");
+    } finally {
+      if (request === cameraRequestRef.current) setCameraPending(false);
     }
   }
 
@@ -481,7 +581,9 @@ export default function EbtWeb() {
     }
     const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
-    setDraft((current) => keepLocationAndComment ? { ...current, serial: "", printerCode: "" } : ({ ...blankDraft(), denomination: current.denomination, country: current.country, city: current.city, postalCode: current.postalCode }));
+    const nextDraft = keepLocationAndComment ? { ...currentDraft, serial: "", printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" } : { ...blankDraft(), denomination: currentDraft.denomination, country: currentDraft.country, city: currentDraft.city, postalCode: currentDraft.postalCode, printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" };
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
     setMessage(keepLocationAndComment ? "Added to your local queue. Scanning the next note…" : "Added to your local submission queue.");
     return true;
   }
@@ -561,20 +663,11 @@ export default function EbtWeb() {
       {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
     </section>}
 
-    {tab === "entry" && <section className="entry-panel">
-      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
-      <div className="location-card">
-        <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
-        <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
-        <button className="text-button" onClick={saveLocation}>Remember this location</button>
-      </div>
-      <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
-
       {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
         <div className="camera-toolbar">
           <div className="camera-context">
             <small>€{draft.denomination || "—"}{(scanResult?.target ?? scanTarget) === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
-            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `Scanning ${labelFor(scanTarget)}`}</span>
+            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `${cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
           </div>
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
@@ -596,17 +689,29 @@ export default function EbtWeb() {
         </>}
       </div>}
 
+    {tab === "entry" && <section className="entry-panel">
+      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
+      <div className="location-card">
+        <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
+        <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
+        <button className="text-button" onClick={saveLocation}>Remember this location</button>
+      </div>
+      <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
+
+
+
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={ocrStatus !== "ready" || isScanning}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={ocrStatus !== "ready" || isScanning}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
+      <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes<small>Keep the printer code after adding a note. Turn off for a different batch.</small></span></label>
       <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
@@ -618,7 +723,23 @@ export default function EbtWeb() {
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings"><label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="confidence-setting"><span>Printer-code minimum confidence <b>{Math.round(printerConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(printerConfidence * 100)} onChange={(event) => setPrinterConfidence(Number(event.target.value) / 100)} /></label><label className="confidence-setting"><span>Serial-number minimum confidence <b>{Math.round(serialConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(serialConfidence * 100)} onChange={(event) => setSerialConfidence(Number(event.target.value) / 100)} /></label><small>0% accepts every OCR score; format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings">
+        <h3>Scanning cameras</h3>
+        <small>Choose a camera separately for each code. Click Scan preview to allow access and reveal available cameras. Changing a selection never opens the camera.</small>
+        {(["printerCode", "serial"] as const).map((target) => <fieldset className="camera-setting" key={target}>
+          <legend>{target === "printerCode" ? "Printer code" : "Serial number"}</legend>
+          <label className="camera-choice">Camera<select value={cameraPreferences[target].deviceId} onChange={(event) => updateCameraPreference(target, { deviceId: event.target.value })}>
+            <option value="">Automatic rear camera</option>
+            {cameraPreferences[target].deviceId && !cameras.some((camera) => camera.deviceId === cameraPreferences[target].deviceId) && <option value={cameraPreferences[target].deviceId}>Saved camera (scan to check availability)</option>}
+            {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
+          </select></label>
+          <label className="toggle-setting"><input type="checkbox" checked={cameraPreferences[target].closeUp} onChange={(event) => updateCameraPreference(target, { closeUp: event.target.checked })} /><span>Prefer close-up camera (macro / ultra wide)</span></label>
+          <small>{cameraPreferences[target].deviceId ? "Your selected camera takes priority over the close-up preference." : "Uses a labelled macro or ultra-wide camera when available. Browser and phone support varies; try the cameras to check focus."}</small>
+          <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
+        </fieldset>)}
+        <label className="toggle-setting"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
+        <small>After adding a note, keep its printer code and scan only the next serial number. Changing denomination clears the code. Turn this off or rescan when the printer code changes.</small>
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="confidence-setting"><span>Printer-code minimum confidence <b>{Math.round(printerConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(printerConfidence * 100)} onChange={(event) => setPrinterConfidence(Number(event.target.value) / 100)} /></label><label className="confidence-setting"><span>Serial-number minimum confidence <b>{Math.round(serialConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(serialConfidence * 100)} onChange={(event) => setSerialConfidence(Number(event.target.value) / 100)} /></label><small>0% accepts every OCR score; format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
   </main>;

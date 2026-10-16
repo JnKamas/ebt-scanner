@@ -32,3 +32,9 @@ On this Windows machine, PowerShell blocks the `npm` script shim. Use `npm.cmd r
 3. Open the deployed URL in iPhone Safari. Tap **Share → Add to Home Screen**.
 
 Vercel automatically recognizes the Next.js project; no environment variables are required.
+
+## Camera preferences and batches
+
+In Settings, choose a camera independently for the printer code and serial number. **Scan preview** requests permission and opens a 15-second live focus test without OCR or changing note values. Camera labels may only appear after this permission grant. Preferences stay in this browser. The optional close-up preference tries a labelled macro/ultra-wide camera; a specific camera selection takes priority. Browsers do not expose a universal macro switch, so test the available cameras on the actual phone. If a saved camera is disconnected, scanning falls back to the default camera.
+
+Enable **Use this printer code for multiple notes** in Entry or Settings for a batch with the same printer code. Both manual and automatic queue additions retain that code. With automatic queueing enabled, subsequent scans go directly to the next serial number. Changing denomination clears the retained printer code; rescan or edit it when starting a different batch.
