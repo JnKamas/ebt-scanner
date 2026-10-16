@@ -510,6 +510,10 @@ export default function EbtWeb() {
 
   async function openCamera(target: ScanTarget, previewOnly = false) {
     if (cameraPending) return;
+    if (!previewOnly && !denominations.includes(draftRef.current.denomination)) {
+      setMessage("Choose a denomination before scanning a banknote.");
+      return;
+    }
     if (!previewOnly && !ocrRef.current) {
       setMessage(ocrStatus === "error" ? "Scanner preparation failed. Try preparing it again." : "Scanner is still preparing. Please wait a moment.");
       return;
@@ -718,16 +722,19 @@ export default function EbtWeb() {
 
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
+        {!denominationOk && <p className="denomination-hint">Choose a denomination to enable scanning.</p>}
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
-          <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="printer-entry">
+            <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
+            <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
+          </div>
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
-      <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes<small>Keep the printer code after adding a note. Turn off for a different batch.</small></span></label>
       <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
@@ -735,7 +742,7 @@ export default function EbtWeb() {
     {tab === "queue" && <section className="queue-panel">
       {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Settings to submit this queue to EuroBillTracker.</p>)}
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div><strong>€{note.denomination}</strong><span>{note.serial}</span><small>{note.city}, {note.country}</small></div><button aria-label={`Remove ${note.serial}`} onClick={() => removeNote(note.id)}>×</button></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
+      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: {note.serial}</span><span>Printer code: {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><button aria-label={`Remove ${note.serial}`} onClick={() => removeNote(note.id)}>×</button></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
@@ -753,8 +760,6 @@ export default function EbtWeb() {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
-        <label className="toggle-setting"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
-        <small>After adding a note, keep its printer code and scan only the next serial number. Changing denomination clears the code. Turn this off or rescan when the printer code changes.</small>
         <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="confidence-setting"><span>Printer-code minimum confidence <b>{Math.round(printerConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(printerConfidence * 100)} onChange={(event) => setPrinterConfidence(Number(event.target.value) / 100)} /></label><label className="confidence-setting"><span>Serial-number minimum confidence <b>{Math.round(serialConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(serialConfidence * 100)} onChange={(event) => setSerialConfidence(Number(event.target.value) / 100)} /></label><small>0% accepts every OCR score; format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>

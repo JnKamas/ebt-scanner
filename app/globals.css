@@ -32,6 +32,13 @@ button { cursor:pointer; }
 .scan-settings .camera-choice select { width:100%; min-width:0; text-align:left; font-weight:500; }
 .camera-test { min-height:44px; padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:var(--mint); color:var(--ink); font-weight:700; }
 .camera-test:disabled { opacity:.5; }
-.batch-toggle { display:flex; gap:10px; align-items:flex-start; margin:16px 0; padding:14px; border:1px solid var(--line); border-radius:12px; background:white; font-size:13px; font-weight:700; }
-.batch-toggle input { flex:none; width:18px; height:18px; margin:0; accent-color:var(--mint-dark); }
-.batch-toggle small { display:block; margin-top:5px; color:var(--muted); font-size:11px; font-weight:400; line-height:1.4; }
+ .printer-entry { display:flex; align-items:center; gap:12px; }
+.printer-entry > input { flex:1; min-width:90px; }
+.field-row .batch-toggle { display:flex; flex:0 1 185px; align-items:center; gap:8px; margin:8px 0 0; color:var(--ink); font-size:11px; line-height:1.4; letter-spacing:0; }
+.field-row .batch-toggle input { flex:none; width:17px; height:17px; margin:0; padding:0; accent-color:var(--mint-dark); }
+.denomination-hint { margin:0; padding:0 15px 12px; color:var(--muted); font-size:12px; }
+.note-list .queued-note { display:flex; align-items:flex-start; gap:10px; min-width:0; }
+.note-list .queued-note strong { flex:none; width:50px; }
+.note-list .queued-details { display:grid; gap:5px; min-width:0; }
+.note-list .queued-details span { display:block; overflow-wrap:anywhere; }
+.note-list .queued-details small { margin:0; line-height:1.4; overflow-wrap:anywhere; }
