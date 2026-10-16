@@ -25,8 +25,8 @@ type EbtAccount = {
 
 type Tab = "entry" | "queue" | "settings";
 type ScanTarget = "printerCode" | "serial";
-type CameraPreference = { deviceId: string; closeUp: boolean };
-const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "", closeUp: false }, serial: { deviceId: "", closeUp: false } });
+type CameraPreference = { deviceId: string };
+const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "" }, serial: { deviceId: "" } });
 type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 type ScanMatch = { value: string; boxes: ScanBox[]; confidences: number[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
@@ -82,6 +82,7 @@ export default function EbtWeb() {
   const [cameraPreferences, setCameraPreferences] = useState(defaultCameras);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [cameraListMessage, setCameraListMessage] = useState("");
   const [cameraPending, setCameraPending] = useState(false);
   const [cameraPreviewOnly, setCameraPreviewOnly] = useState(false);
   const previewOnlyRef = useRef(false);
@@ -139,7 +140,6 @@ export default function EbtWeb() {
       const saved = JSON.parse(window.localStorage.getItem("ebt-web-cameras") || "null");
       if (saved) setCameraPreferences(Object.fromEntries((["printerCode", "serial"] as const).map((target) => [target, {
         deviceId: typeof saved[target]?.deviceId === "string" ? saved[target].deviceId : "",
-        closeUp: saved[target]?.closeUp === true,
       }])) as Record<ScanTarget, CameraPreference>);
     } catch { /* Ignore an invalid saved camera preference. */ }
     setPreferencesReady(true);
@@ -169,6 +169,33 @@ export default function EbtWeb() {
 
   function updateCameraPreference(target: ScanTarget, change: Partial<CameraPreference>) {
     setCameraPreferences((current) => ({ ...current, [target]: { ...current[target], ...change } }));
+  }
+
+  async function discoverCameras() {
+    if (cameraPending || cameraOpen) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraListMessage("Camera access is unavailable. Open this page over HTTPS or localhost.");
+      return;
+    }
+    setCameraPending(true);
+    setCameraListMessage("Allow camera access to list your cameras…");
+    let stream: MediaStream | undefined;
+    try {
+      // Permission must be granted before browsers expose the full device list.
+      // Keep the stream alive while enumerating, then release it without OCR.
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const available = await refreshCameras();
+      setCameraListMessage(available.length
+        ? `${available.length} camera${available.length === 1 ? "" : "s"} available. Choose a camera below for each code.${available.length === 1 ? " This browser exposes only one camera; additional phone lenses may not be available to websites." : ""}`
+        : "No cameras were listed. Check camera permissions and click Scan for cameras again.");
+    } catch (error) {
+      setCameraListMessage(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "Camera access was blocked. Allow camera access in browser settings, then click Scan for cameras again."
+        : "Could not list cameras. Close other camera apps and click Scan for cameras again.");
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+      setCameraPending(false);
+    }
   }
 
   useEffect(() => {
@@ -501,11 +528,7 @@ export default function EbtWeb() {
     setCameraPreviewOnly(previewOnly);
     try {
       const preference = cameraPreferences[target];
-      let available = await refreshCameras();
-      if (request !== cameraRequestRef.current) return;
-      let deviceId = preference.deviceId;
-      const closeUpCamera = (devices: MediaDeviceInfo[]) => devices.find((device) => /macro|ultra[\s-]?wide|back.*0[.,]5|zadn.*ultra/i.test(device.label));
-      if (!deviceId && preference.closeUp) deviceId = closeUpCamera(available)?.deviceId ?? "";
+      const deviceId = preference.deviceId;
       const constraints = (id: string): MediaStreamConstraints => ({ video: {
         ...(id ? { deviceId: { exact: id } } : { facingMode: { ideal: "environment" } }),
         width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },
@@ -520,18 +543,11 @@ export default function EbtWeb() {
       }
       if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
-      available = await refreshCameras();
-      if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
-      // The first permission grant may reveal a close-up lens that was hidden.
-      const revealedCloseUp = !preference.deviceId && preference.closeUp ? closeUpCamera(available) : undefined;
-      if (revealedCloseUp && revealedCloseUp.deviceId !== stream.getVideoTracks()[0]?.getSettings().deviceId) {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = await navigator.mediaDevices.getUserMedia(constraints(revealedCloseUp.deviceId));
-      }
+      await refreshCameras();
       if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       const activeLabel = stream.getVideoTracks()[0]?.label || "Camera";
-      setCameraHint(`${activeLabel}. ${fallback ? "Saved camera unavailable; using the default. " : ""}${preference.closeUp && !preference.deviceId && !revealedCloseUp ? "No labelled macro camera exposed; try a camera in Settings. " : ""}${previewOnly ? "Check close-up focus. Preview closes after 15 seconds; no codes are saved." : `Centre the ${labelFor(target)} inside the guide.`}`);
+      setCameraHint(`${activeLabel}. ${fallback ? "Saved camera unavailable; using the default. " : ""}${previewOnly ? "Check close-up focus. Preview closes after 15 seconds; no codes are saved." : `Centre the ${labelFor(target)} inside the guide.`}`);
       cameraActiveRef.current = true;
       setPreviewReady(false);
       setScanResult(null);
@@ -725,7 +741,9 @@ export default function EbtWeb() {
 
     {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings">
         <h3>Scanning cameras</h3>
-        <small>Choose a camera separately for each code. Click Scan preview to allow access and reveal available cameras. Changing a selection never opens the camera.</small>
+        <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
+        <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
+        {cameraListMessage && <small role="status">{cameraListMessage}</small>}
         {(["printerCode", "serial"] as const).map((target) => <fieldset className="camera-setting" key={target}>
           <legend>{target === "printerCode" ? "Printer code" : "Serial number"}</legend>
           <label className="camera-choice">Camera<select value={cameraPreferences[target].deviceId} onChange={(event) => updateCameraPreference(target, { deviceId: event.target.value })}>
@@ -733,8 +751,6 @@ export default function EbtWeb() {
             {cameraPreferences[target].deviceId && !cameras.some((camera) => camera.deviceId === cameraPreferences[target].deviceId) && <option value={cameraPreferences[target].deviceId}>Saved camera (scan to check availability)</option>}
             {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
           </select></label>
-          <label className="toggle-setting"><input type="checkbox" checked={cameraPreferences[target].closeUp} onChange={(event) => updateCameraPreference(target, { closeUp: event.target.checked })} /><span>Prefer close-up camera (macro / ultra wide)</span></label>
-          <small>{cameraPreferences[target].deviceId ? "Your selected camera takes priority over the close-up preference." : "Uses a labelled macro or ultra-wide camera when available. Browser and phone support varies; try the cameras to check focus."}</small>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
         <label className="toggle-setting"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
