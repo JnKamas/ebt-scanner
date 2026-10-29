@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { EbtCity, EbtComment, EbtJourney, EbtProfile, Receipt, submissionMessage } from "../lib/ebt";
 
 function useEbtData<T>(url: string | null) {
@@ -29,35 +29,62 @@ function LoadStatus({ loading, error, retry }: { loading: boolean; error?: strin
 
 type Location = { city: string; country: string; postalCode: string };
 
-export function PreviousLocations({ onChoose }: { onChoose: (location: Location) => void }) {
-  const result = useEbtData<{ data: EbtCity[] }>("/api/ebt/suggestions?kind=cities");
-  const cities = result.data?.data ?? [];
-  return <div className="ebt-suggestions"><label htmlFor="previous-location">Your previous EBT locations</label><LoadStatus {...result} />
-    {result.data && (cities.length ? <select id="previous-location" value="" onChange={(event) => {
-      const city = cities[Number(event.target.value)];
-      if (city) onChoose({ city: city.city, country: city.country, postalCode: city.top_zipcode });
-    }}><option value="" disabled>Choose a previous location</option>{cities.map((city, index) => <option key={`${city.country}/${city.city}`} value={index}>{city.city}, {city.country}{city.top_zipcode ? ` · ${city.top_zipcode}` : ""}</option>)}</select> : <p className="api-status">No previous locations yet. Enter one below.</p>)}
+type Suggestion = { value: string; label: string; detail?: string; choose: () => void };
+
+function SuggestedField({ id, label, value, placeholder, autoComplete, multiline, suggestions, loading, error, retry, onChange }: {
+  id: string; label: string; value: string; placeholder: string; autoComplete?: string; multiline?: boolean;
+  suggestions: Suggestion[]; loading: boolean; error?: string; retry: () => void; onChange: (value: string) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [filtering, setFiltering] = useState(false);
+  const matches = suggestions.filter((item) => !filtering || `${item.label} ${item.detail || ""}`.toLocaleLowerCase().includes(value.toLocaleLowerCase())).slice(0, 5);
+  const listId = useId();
+  const shared = {
+    id, value, placeholder, autoComplete: autoComplete || "off",
+    onFocus: () => { setFocused(true); setFiltering(false); },
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setFocused(true); setFiltering(true); onChange(event.target.value); },
+    onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Escape") { setFocused(false); event.stopPropagation(); } },
+    "aria-describedby": focused && (matches.length || loading || error) ? listId : undefined,
+  };
+  return <div className={multiline ? "comment suggested-field" : "suggested-field"} onBlur={(event) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+  }}>
+    <label htmlFor={id}>{label}{multiline && <> <span>optional</span></>}</label>
+    {multiline ? <textarea {...shared} rows={2} /> : <input {...shared} />}
+    {focused && <div id={listId} className="field-suggestions">
+      {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onClick={() => { item.choose(); setFocused(false); }}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
+      <LoadStatus loading={loading} error={error} retry={retry} />
+    </div>}
   </div>;
 }
 
-export function LocationSuggestions({ location, onZip, onComment }: { location: Location; onZip: (zip: string) => void; onComment: (comment: string) => void }) {
-  const params = new URLSearchParams({ city: location.city, country: location.country });
-  const ready = Boolean(location.city.trim() && location.country.trim());
-  // Debounce manual entry to avoid requesting each partial city/postcode.
+function useDebouncedQuery(value: string) {
   const [query, setQuery] = useState("");
-  const nextQuery = ready ? params.toString() : "";
-  const nextCommentQuery = ready ? new URLSearchParams({ ...location, zip: location.postalCode }).toString() : "";
-  const [commentQuery, setCommentQuery] = useState("");
-  useEffect(() => { const timer = setTimeout(() => setQuery(nextQuery), 450); return () => clearTimeout(timer); }, [nextQuery]);
-  useEffect(() => { const timer = setTimeout(() => setCommentQuery(nextCommentQuery), 450); return () => clearTimeout(timer); }, [nextCommentQuery]);
-  const zips = useEbtData<{ data: string[] }>(query && query === nextQuery ? `/api/ebt/suggestions?kind=zipcodes&${query}` : null);
-  const comments = useEbtData<{ data: EbtComment[] }>(commentQuery && commentQuery === nextCommentQuery ? `/api/ebt/suggestions?kind=comments&${commentQuery}` : null);
-  if (!ready) return null;
-  return <div className="ebt-suggestions"><LoadStatus {...zips} />
-    {Boolean(zips.data?.data.length) && <label>Previously used postcodes<select value="" onChange={(event) => onZip(event.target.value)}><option value="" disabled>Choose a postcode</option>{zips.data!.data.map((zip) => <option key={zip} value={zip}>{zip || "(empty postcode)"}</option>)}</select></label>}
-    <LoadStatus {...comments} />
-    {comments.data && (comments.data.data.length ? <label>Previous comments for this city and postcode<select value="" onChange={(event) => onComment(event.target.value)}><option value="" disabled>Choose a comment</option>{comments.data.data.map((item) => <option key={item.comment} value={item.comment}>{item.comment || "(empty comment)"} · {item.amount} notes</option>)}</select></label> : <p className="api-status">No previous comments for this city and postcode. You can write one below.</p>)}
-  </div>;
+  useEffect(() => { const timer = setTimeout(() => setQuery(value), 450); return () => clearTimeout(timer); }, [value]);
+  return query === value ? query : "";
+}
+
+export function EntryLocationFields({ signedIn, location, comment, onChange, onChoose }: {
+  signedIn: boolean; location: Location; comment: string;
+  onChange: (field: "city" | "country" | "postalCode" | "comment", value: string) => void;
+  onChoose: (location: Location) => void;
+}) {
+  const cities = useEbtData<{ data: EbtCity[] }>(signedIn ? "/api/ebt/suggestions?kind=cities" : null);
+  const ready = signedIn && Boolean(location.city.trim() && location.country.trim());
+  const query = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country }).toString() : "");
+  const commentQuery = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country, zip: location.postalCode }).toString() : "");
+  const zips = useEbtData<{ data: string[] }>(query ? `/api/ebt/suggestions?kind=zipcodes&${query}` : null);
+  const comments = useEbtData<{ data: EbtComment[] }>(commentQuery ? `/api/ebt/suggestions?kind=comments&${commentQuery}` : null);
+  return <>
+    <div className="location-card">
+      <label>Country<input value={location.country} onChange={(event) => onChange("country", event.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
+      <div className="two-fields">
+        <SuggestedField id="entry-city" label="City" value={location.city} placeholder="Bratislava" autoComplete="address-level2" onChange={(value) => onChange("city", value)} {...cities} suggestions={(cities.data?.data || []).map((city) => ({ value: `${city.country}/${city.city}`, label: city.city, detail: [city.country, city.top_zipcode].filter(Boolean).join(" · "), choose: () => onChoose({ city: city.city, country: city.country, postalCode: city.top_zipcode }) }))} />
+        <SuggestedField id="entry-postcode" label="Postal code" value={location.postalCode} placeholder="811 01" autoComplete="postal-code" onChange={(value) => onChange("postalCode", value)} {...zips} suggestions={(zips.data?.data || []).filter(Boolean).map((zip) => ({ value: zip, label: zip, choose: () => onChange("postalCode", zip) }))} />
+      </div>
+    </div>
+    <SuggestedField id="entry-comment" label="Comment" value={comment} placeholder="e.g. supermarket, change" multiline onChange={(value) => onChange("comment", value)} {...comments} suggestions={(comments.data?.data || []).filter((item) => item.comment).map((item) => ({ value: item.comment, label: item.comment, detail: `${item.amount} notes`, choose: () => onChange("comment", item.comment) }))} />
+  </>;
 }
 
 function EbtMap({ url, label }: { url: string | null; label: string }) {

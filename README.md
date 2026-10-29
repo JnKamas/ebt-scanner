@@ -10,7 +10,7 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 - Saved location and reusable comments
 - Local persistent queue, CSV copy/export, and official EBT batch submission
 - EBT sign-in using the official HTTPS API; password is never written to browser storage
-- Previous EBT cities and postcodes, plus comments suggested for the exact city/postcode
+- Previous EBT cities, postcodes, and comments suggested inside the existing fields on focus; type to filter or click a suggestion, without additional dropdown controls
 - Submission receipts with individual errors, duplicate entry details, and editable queued notes
 - Hit journeys with entry locations, dates, trackers, distances, elapsed days, and available EBT maps
 - Personal join date and shared note/hit maps alongside refreshed account totals

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LocationSuggestions, PersonalProfile, PreviousLocations, SubmissionReceipts } from "./ebt-account-tools";
+import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
 import { Receipt, SubmissionResult } from "../lib/ebt";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 
@@ -741,15 +741,7 @@ export default function EbtWeb() {
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
       <p className="location-credit">Location lookup sends your position to <a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer">Photon</a>. Address data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
-      <div className="location-card">
-        {account && <PreviousLocations key={account.username} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />}
-        <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
-        <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
-      </div>
-      {account && <LocationSuggestions key={account.username} location={draft} onZip={(zip) => update("postalCode", zip)} onComment={(comment) => update("comment", comment)} />}
-      <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
-
-
+      <EntryLocationFields key={account?.username || "signed-out"} signedIn={Boolean(account)} location={draft} comment={draft.comment} onChange={update} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />
 
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
