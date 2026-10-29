@@ -590,7 +590,7 @@ export default function EbtWeb() {
             return;
           }
           setDraft((draft) => ({ ...draft, ...location }));
-          setLocationMessage(`Location filled: ${location.city}, ${location.country}.${location.postalCode ? "" : " No postcode was found; enter it manually."}${coords.accuracy > 1000 ? " Your browser supplied an approximate position." : ""} Check that this is where you got the note.`);
+          setLocationMessage("");
         } catch (error) {
           setLocationMessage(error instanceof Error && error.name !== "TypeError" && error.name !== "TimeoutError" ? error.message : "Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
         } finally { setIsLocating(false); }
@@ -724,7 +724,6 @@ export default function EbtWeb() {
 
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
-      <p className="location-credit">Location lookup sends your position to <a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer">Photon</a>. Address data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
       <EntryLocationFields key={account?.username || "signed-out"} signedIn={Boolean(account)} location={draft} comment={draft.comment} onChange={update} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />
 
@@ -745,6 +744,7 @@ export default function EbtWeb() {
       </div>
       <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
+      <a className="location-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
     </section>}
 
     {tab === "queue" && <section className="queue-panel">

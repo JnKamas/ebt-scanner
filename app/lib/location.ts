@@ -22,7 +22,7 @@ export function addressFromPhoton(value: unknown): LocatedAddress {
       if (country === "Czechia") country = "Czech Republic";
       if (country === "Türkiye") country = "Turkey";
     }
-    if (city && country) return { city, country, postalCode: text(properties.postcode) };
+    if (city && country) return { city, country, postalCode: text(properties.postcode).replace(/\s+/g, "") };
   }
   throw new Error("No town or city was found near this position. Enter your location manually or retry outdoors.");
 }
@@ -50,7 +50,7 @@ export async function locateAddress(latitude: number, longitude: number): Promis
     const address = nearest?.features?.[0]?.properties;
     const city = settlement?.features?.[0]?.properties;
     const sameArea = text(address?.countrycode) && text(address?.countrycode) === text(city?.countrycode) && text(address?.county) && text(address?.county) === text(city?.county);
-    return { ...location, postalCode: sameArea ? text(address?.postcode) : "" };
+    return { ...location, postalCode: sameArea ? text(address?.postcode).replace(/\s+/g, "") : "" };
   }
 }
 

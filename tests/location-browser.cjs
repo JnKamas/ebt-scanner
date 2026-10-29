@@ -26,7 +26,7 @@ const assert = require('node:assert/strict');
         ? new URL(route.request().url()).searchParams.has('layer')
           ? { name: 'Bratislava', osm_key: 'place', osm_value: 'city', countrycode: 'SK', postcode: '815 18', county: 'District I' }
           : { countrycode: 'SK', postcode: '811 06', county: 'District I' }
-        : { city: 'Vienna', countrycode: 'AT', postcode: mode === 'no-postcode' ? undefined : '1010' };
+        : { city: 'Vienna', countrycode: 'AT', postcode: mode === 'no-postcode' ? undefined : '10 10' };
       return route.fulfill({ json: { features: [{ properties: props }] } });
     });
     await page.goto('http://localhost:3001');
@@ -37,19 +37,23 @@ const assert = require('node:assert/strict');
     const postcode = page.getByRole('textbox', { name: 'Postal code', exact: true });
     await postcode.fill('OLD');
     await button.click();
-    await page.getByText(/Location filled: Vienna, Austria/).waitFor();
+    await page.waitForFunction(() => document.getElementById('entry-postcode')?.value === '1010');
+    assert.equal(await page.locator('.location-notice').count(), 0);
+    assert.equal(await page.getByText(/Location lookup sends|Location filled|No previous comments/).count(), 0);
     assert.equal(await country.inputValue(), 'Austria');
     assert.equal(await city.inputValue(), 'Vienna');
     assert.equal(await postcode.inputValue(), '1010');
     assert.equal(await page.evaluate(() => localStorage.getItem('ebt-web-location')), null);
     mode = 'no-postcode';
     await button.click();
-    await page.getByText(/No postcode was found/).waitFor();
+    await page.waitForFunction(() => document.getElementById('entry-postcode')?.value === '');
+    assert.equal(await page.locator('.location-notice').count(), 0);
     assert.equal(await postcode.inputValue(), '');
     mode = 'bratislava';
     await button.click();
-    await page.getByText(/Location filled: Bratislava, Slovakia/).waitFor();
-    assert.equal(await postcode.inputValue(), '811 06');
+    await page.waitForFunction(() => document.getElementById('entry-city')?.value === 'Bratislava');
+    assert.equal(await page.locator('.location-notice').count(), 0);
+    assert.equal(await postcode.inputValue(), '81106');
     for (const [code, message] of [[1, /Location access was blocked/], [2, /could not determine your position/], [3, /Finding your position timed out/]]) {
       await page.evaluate((value) => { window.geoError = value; }, code);
       await button.click();
@@ -60,7 +64,7 @@ const assert = require('node:assert/strict');
     mode = 'network-error';
     await button.click();
     await page.getByText(/Could not look up your city and postcode/).waitFor();
-    assert.equal(await postcode.inputValue(), '811 06');
+    assert.equal(await postcode.inputValue(), '81106');
     mode = 'slow';
     const lookupStarted = page.waitForRequest('https://photon.komoot.io/reverse?**');
     await button.click();

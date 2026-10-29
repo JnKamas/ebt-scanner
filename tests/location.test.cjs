@@ -9,7 +9,7 @@ const { addressFromPhoton, locateAddress, locationPermissionMessage } = location
 const feature = (properties) => ({ features: [{ properties }] });
 
 test('English countries, town names and postcodes are derived from address data', () => {
-  assert.deepEqual(addressFromPhoton(feature({ city: 'Vienna', country: 'Österreich', countrycode: 'AT', postcode: '01010' })), { city: 'Vienna', country: 'Austria', postalCode: '01010' });
+  assert.deepEqual(addressFromPhoton(feature({ city: 'Vienna', country: 'Österreich', countrycode: 'AT', postcode: '010 10' })), { city: 'Vienna', country: 'Austria', postalCode: '01010' });
   assert.deepEqual(addressFromPhoton(feature({ osm_key: 'place', osm_value: 'village', name: 'Village', countrycode: 'CZ' })), { city: 'Village', country: 'Czech Republic', postalCode: '' });
   assert.throws(() => addressFromPhoton({ features: [] }), /No town or city/);
   assert.throws(() => addressFromPhoton(null), /unreadable/);
@@ -35,7 +35,7 @@ test('lookup sends rounded coordinates without credentials and uses the nearest 
       : { countrycode: 'SK', postcode: '811 06', county: 'District I' }) };
   };
   try {
-    assert.deepEqual(await locateAddress(48.1486123, 17.1077123), { city: 'Bratislava', country: 'Slovakia', postalCode: '811 06' });
+    assert.deepEqual(await locateAddress(48.1486123, 17.1077123), { city: 'Bratislava', country: 'Slovakia', postalCode: '81106' });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url.searchParams.get('lat'), '48.1486');
     assert.equal(calls[0].options.credentials, 'omit');
