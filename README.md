@@ -22,11 +22,15 @@ Notes, saved locations, and comments remain in the browser's local storage until
 
 While signed in, the app also reads your previous locations/comments and your profile from EBT. These responses and the last submission receipt stay in page memory, with no server-side persistence. Sign-out clears the receipt. A rejected or unconfirmed submission stays in the local queue; successful notes are removed. Receipts include links to EBT note pages, and hits can load their journey on demand. Profile and journey maps depend on availability and EBT sharing settings. The API does not supply a complete note-history or latest-hit feed.
 
+**Use my location** requests browser location permission only when clicked, then sends rounded coordinates directly to [Photon](https://github.com/komoot/photon) to suggest a city, English country name, and postcode from OpenStreetMap. Coordinates are not sent through the app server or saved by the app. Check the suggested address, especially with approximate laptop positioning. Missing postcodes stay blank for manual entry, and lookup failures retain the current fields. Use **Remember this location** to save the address locally. Photon’s public service permits reasonable project usage, has no availability guarantee, and may throttle heavy traffic; lookups happen only on explicit clicks, with at most one extra city lookup when an address lacks its city.
+
 ## Verification
 
 Run `node --test tests/ebt-api.test.cjs` for API contract/error handling checks and `.\node_modules\.bin\tsc.cmd --noEmit` for TypeScript. Use `npm.cmd run build` for the production build (the existing OCR configuration requires webpack), after stopping the development server.
 
 With the production server on port 3001 and Playwright installed, run `node tests/ebt-browser.cjs`. Alternatively set `EBT_PLAYWRIGHT_MODULE` to an existing Playwright module path. The browser checks use fixture responses for every EBT request and never submit real notes or credentials.
+
+Run `node --test tests/location.test.cjs` and `node tests/location-browser.cjs` for location parsing and browser workflow checks. Browser location tests use a simulated position and fixture geocoding responses.
 
 ## Run locally
 

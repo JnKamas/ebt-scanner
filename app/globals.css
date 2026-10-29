@@ -70,3 +70,6 @@ button { cursor:pointer; }
 .queue-editor input { width:100%; min-width:0; border:1px solid var(--line); border-radius:8px; padding:10px; }
 .queue-editor > div { display:flex; gap:12px; }
 .queue-editor button { border:1px solid var(--line); border-radius:8px; background:#e6f7f2; padding:10px; }
+.location-credit { margin:0 2px 10px; color:var(--muted); font-size:11px; line-height:1.5; }
+.location-credit a { color:var(--mint-dark); }
+.section-heading button:disabled { opacity:.65; cursor:wait; }

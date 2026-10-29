@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocationSuggestions, PersonalProfile, PreviousLocations, SubmissionReceipts } from "./ebt-account-tools";
 import { Receipt, SubmissionResult } from "../lib/ebt";
+import { locateAddress, locationPermissionMessage } from "../lib/location";
 
 type Note = {
   id: string;
@@ -73,6 +74,8 @@ export default function EbtWeb() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<OcrStatus>("loading");
   const [ocrError, setOcrError] = useState("");
@@ -579,17 +582,36 @@ export default function EbtWeb() {
   }
 
   function useLocation() {
-    if (!navigator.geolocation) {
-      setMessage("Location is not available in this browser.");
+    if (isLocating) return;
+    if (!window.isSecureContext) {
+      setLocationMessage("Location needs HTTPS or localhost. Open the secure app address or enter your location manually.");
       return;
     }
-    setMessage("Getting your location…");
+    if (!navigator.geolocation) {
+      setLocationMessage("Location is not available in this browser. Enter your city, country, and postcode manually.");
+      return;
+    }
+    const original = draftRef.current;
+    setIsLocating(true);
+    setLocationMessage("Getting your location…");
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setMessage(`Location found (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}). Add city and postal code to save it.`);
+      async ({ coords }) => {
+        setLocationMessage("Finding your city and postcode…");
+        try {
+          const location = await locateAddress(coords.latitude, coords.longitude);
+          const current = draftRef.current;
+          if (current.city !== original.city || current.country !== original.country || current.postalCode !== original.postalCode) {
+            setLocationMessage("Your location fields changed during the lookup. Click Use my location again to replace them, or keep your edits.");
+            return;
+          }
+          setDraft((draft) => ({ ...draft, ...location }));
+          setLocationMessage(`Location filled: ${location.city}, ${location.country}.${location.postalCode ? "" : " No postcode was found; enter it manually."}${coords.accuracy > 1000 ? " Your browser supplied an approximate position." : ""} Check that this is where you got the note.`);
+        } catch (error) {
+          setLocationMessage(error instanceof Error && error.name !== "TypeError" && error.name !== "TimeoutError" ? error.message : "Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
+        } finally { setIsLocating(false); }
       },
-      () => setMessage("Location permission was not granted. You can enter it manually."),
-      { enableHighAccuracy: false, timeout: 10000 }
+      (error) => { setIsLocating(false); setLocationMessage(locationPermissionMessage(error.code)); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     );
   }
 
@@ -722,7 +744,9 @@ export default function EbtWeb() {
       </div>}
 
     {tab === "entry" && <section className="entry-panel">
-      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
+      <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
+      <p className="location-credit">Location lookup sends your position to <a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer">Photon</a>. Address data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
+      {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
       <div className="location-card">
         {account && <PreviousLocations key={account.username} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />}
         <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
