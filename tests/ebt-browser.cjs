@@ -1,0 +1,84 @@
+// Run against npm start on port 3001. Requires Playwright (or EBT_PLAYWRIGHT_MODULE).
+// All EBT responses are fixtures: this never logs in or submits a real note.
+const { chromium } = require(process.env.EBT_PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    let signedIn = true;
+    let failComments = true;
+    const calls = [];
+    const account = { username: 'TestTracker', my_city: 'Wien', my_country: 'Austria', my_zip: '1010', totalbills: 100, totalhits: 3 };
+    const fixtureNotes = ['X00000000002', 'X00000000011', 'X00000000020'].map((serial, index) => ({ id: String(index), serial, printerCode: 'R001A1', denomination: '5', country: 'Austria', city: 'Wien', postalCode: '1010', comment: '', createdAt: '2026-10-29T10:00:00Z' }));
+    await context.addInitScript((notes) => { localStorage.setItem('ebt-web-queue', JSON.stringify(notes)); }, fixtureNotes);
+    await page.route('**/api/ebt/**', async (route) => {
+      const url = new URL(route.request().url());
+      calls.push(url.href);
+      const respond = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      if (url.pathname.endsWith('/session')) return respond({ account: signedIn ? account : null });
+      if (url.pathname.endsWith('/logout')) { signedIn = false; return respond({ ok: true }); }
+      if (url.pathname.endsWith('/profile')) return respond({ profile: { user_name: 'TestTracker', join_date: '2005-01-01', total_notes: 100, total_hits: 3, img_url_notes_europe: 'https://www.eurobilltracker.com/test-map.png', img_url_notes_world: null, img_url_hits_europe: null } });
+      if (url.pathname.endsWith('/journey')) return respond({ journey: { total_km: 120, total_days: 30, img_url_europe: null, img_url_world: null, steps: [{ step_id: 0, location_name: 'Berlin', country_name: 'Germany', timestamp: '2026-09-29', user_name: 'FirstTracker', comment: 'shop', hit_km: 0, hit_days: 0 }, { step_id: 1, location_name: 'Wien', country_name: 'Austria', timestamp: '2026-10-29', user_name: 'TestTracker', comment: '', hit_km: 120, hit_days: 30 }] } });
+      if (url.pathname.endsWith('/notes')) {
+        const { notes } = route.request().postDataJSON();
+        return respond({ results: notes.map((note, index) => ({ id: note.id, result: { status: [1, 0, 20][index], billId: index < 2 ? 42 + index : undefined } })) });
+      }
+      if (url.searchParams.get('kind') === 'cities') return respond({ data: [{ city: 'Wien', country: 'Austria', top_zipcode: '1010', nrlocations: 2 }] });
+      if (url.searchParams.get('kind') === 'zipcodes') return respond({ data: ['1010', '1020'] });
+      if (url.searchParams.get('kind') === 'comments') {
+        if (failComments) return respond({ error: 'Temporary EBT failure' }, 502);
+        return respond({ data: url.searchParams.get('city') === 'Wien' ? [{ comment: 'ATM at the station', amount: 20 }] : [] });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    await page.goto('http://localhost:3001');
+    await page.getByLabel('Your previous EBT locations').selectOption('0');
+    await page.getByLabel('Previously used postcodes').selectOption('1020');
+    await page.getByText('Temporary EBT failure').waitFor();
+    failComments = false;
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await page.getByLabel('Previous comments for this city and postcode').selectOption('ATM at the station');
+    assert.equal(await page.locator('textarea').inputValue(), 'ATM at the station');
+    assert(calls.some((url) => url.includes('kind=comments') && url.includes('zip=1020')));
+    await page.getByRole('textbox', { name: 'City', exact: true }).fill('Graz');
+    await page.getByText('No previous comments for this city and postcode. You can write one below.').waitFor();
+    assert.equal(await page.getByLabel('Previous comments for this city and postcode').count(), 0);
+
+    await page.getByRole('button', { name: /Queue/ }).click();
+    await page.getByRole('button', { name: 'Submit 3 to EuroBillTracker' }).click();
+    await page.getByText('Hit! This note has been found before.').waitFor();
+    await page.getByText('Check the country (use its English name). Check the printer code.').waitFor();
+    assert.equal(await page.locator('.note-list article').count(), 1);
+    await page.getByRole('button', { name: 'Show hit journey' }).click();
+    await page.getByText('Berlin, Germany', { exact: true }).waitFor();
+    assert.match(await page.locator('.hit-journey').innerText(), /120 km/);
+    await page.getByRole('button', { name: 'Edit X00000000020' }).click();
+    await page.getByRole('textbox', { name: 'Country (English name)' }).fill('Germany');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    assert.equal(await page.locator('.queue-editor').count(), 0);
+    assert.match(await page.locator('.note-list').innerText(), /Germany/);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('ebt-web-queue')));
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].country, 'Germany');
+
+    await page.getByRole('button', { name: /Settings/ }).click();
+    await page.getByText('Tracking since 2005-01-01').waitFor();
+    assert.equal(await page.getByText('My notes in Europe', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Refresh my stats' }).click();
+    await page.getByText('Tracking since 2005-01-01').waitFor();
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.locator('.stats-card').waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.stats-card').count(), 0);
+    await page.getByRole('button', { name: /Queue/ }).click();
+    assert.equal(await page.locator('.submission-receipts').count(), 0);
+    assert.deepEqual(errors, []);
+    console.log('Browser checks passed: locations, comment retry/context, partial submission, hit journey, rejection editing, profile, mobile width, logout.');
+  } finally { await browser.close(); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });

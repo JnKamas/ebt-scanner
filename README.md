@@ -10,11 +10,23 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 - Saved location and reusable comments
 - Local persistent queue, CSV copy/export, and official EBT batch submission
 - EBT sign-in using the official HTTPS API; password is never written to browser storage
+- Previous EBT cities and postcodes, plus comments suggested for the exact city/postcode
+- Submission receipts with individual errors, duplicate entry details, and editable queued notes
+- Hit journeys with entry locations, dates, trackers, distances, elapsed days, and available EBT maps
+- Personal join date and shared note/hit maps alongside refreshed account totals
 - PWA metadata and a small offline app shell
 
 ## Privacy and EBT submission
 
-Notes, saved locations, and comments remain in the browser's local storage until you submit them. Sign-in is proxied by server-side Next.js routes to the official EBT HTTPS API: the password is forwarded only for login and is never stored. The returned EBT session ID is held in a secure, HTTP-only cookie and is used only to check the account and submit note batches.
+Notes, saved locations, and comments remain in the browser's local storage until you submit them. Sign-in is proxied by server-side Next.js routes to the official EBT HTTPS API: the password is forwarded only for login and is never stored. The returned EBT session ID is held in a secure, HTTP-only cookie and is used for authenticated EBT requests, including suggestions, profile details, note journeys, and submissions.
+
+While signed in, the app also reads your previous locations/comments and your profile from EBT. These responses and the last submission receipt stay in page memory, with no server-side persistence. Sign-out clears the receipt. A rejected or unconfirmed submission stays in the local queue; successful notes are removed. Receipts include links to EBT note pages, and hits can load their journey on demand. Profile and journey maps depend on availability and EBT sharing settings. The API does not supply a complete note-history or latest-hit feed.
+
+## Verification
+
+Run `node --test tests/ebt-api.test.cjs` for API contract/error handling checks and `.\node_modules\.bin\tsc.cmd --noEmit` for TypeScript. Use `npm.cmd run build` for the production build (the existing OCR configuration requires webpack), after stopping the development server.
+
+With the production server on port 3001 and Playwright installed, run `node tests/ebt-browser.cjs`. Alternatively set `EBT_PLAYWRIGHT_MODULE` to an existing Playwright module path. The browser checks use fixture responses for every EBT request and never submit real notes or credentials.
 
 ## Run locally
 

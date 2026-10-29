@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LocationSuggestions, PersonalProfile, PreviousLocations, SubmissionReceipts } from "./ebt-account-tools";
+import { Receipt, SubmissionResult } from "../lib/ebt";
 
 type Note = {
   id: string;
@@ -61,6 +63,11 @@ export default function EbtWeb() {
   const [draft, setDraft] = useState(blankDraft);
   const [notes, setNotes] = useState<Note[]>([]);
   const [account, setAccount] = useState<EbtAccount | null>(null);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const updateTotals = useCallback((totalbills: number, totalhits: number) => {
+    setAccount((current) => current ? { ...current, totalbills, totalhits } : null);
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -647,25 +654,30 @@ export default function EbtWeb() {
   async function logout() {
     await fetch("/api/ebt/logout", { method: "POST" }).catch(() => undefined);
     setAccount(null);
+    setReceipts([]);
     setPassword("");
     setMessage("Signed out of EuroBillTracker on this device.");
   }
 
   async function submitQueue() {
-    if (!account || isSubmitting || notes.length === 0) return;
+    if (!account || isSubmitting || editingNote || notes.length === 0) return;
     const first = notes[0];
     const batch = notes.filter((note) => note.country === first.country && note.city === first.city && note.postalCode === first.postalCode).slice(0, 25);
     setIsSubmitting(true);
     setMessage(`Sending ${batch.length} note${batch.length === 1 ? "" : "s"} to EuroBillTracker…`);
     try {
       const response = await fetch("/api/ebt/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: batch }) });
-      const data = await response.json() as { results?: Array<{ id: string; result: { status?: number } | null }>; error?: string };
+      const data = await response.json() as { results?: Array<{ id: string; result: SubmissionResult | null }>; error?: string };
       if (!response.ok || !data.results) throw new Error(data.error || "EBT could not receive the notes.");
+      setReceipts(batch.map((note) => ({ id: note.id, serial: note.serial, denomination: note.denomination, result: data.results!.find((item) => item.id === note.id)?.result ?? null })));
       const successful = data.results.filter(({ result }) => result && (Number(result.status) === 0 || Number(result.status) === 1));
       const hits = successful.filter(({ result }) => Number(result?.status) === 1).length;
       if (successful.length) setNotes((current) => current.filter((note) => !successful.some(({ id }) => id === note.id)));
       const failed = batch.length - successful.length;
       setMessage(`${successful.length} note${successful.length === 1 ? "" : "s"} submitted${hits ? `, including ${hits} hit${hits === 1 ? "" : "s"}` : ""}.${failed ? ` ${failed} stayed in the queue because EBT rejected it.` : ""}`);
+      // Refresh totals independently; a failed refresh must never undo a submission.
+      void fetch("/api/ebt/session", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null)
+        .then((session) => { if (session?.account) setAccount(session.account); }).catch(() => undefined);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "EBT could not receive the notes. They remain in your queue.");
     } finally {
@@ -712,10 +724,12 @@ export default function EbtWeb() {
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation}>Use my location</button></div>
       <div className="location-card">
+        {account && <PreviousLocations key={account.username} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />}
         <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
         <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
         <button className="text-button" onClick={saveLocation}>Remember this location</button>
       </div>
+      {account && <LocationSuggestions key={account.username} location={draft} onZip={(zip) => update("postalCode", zip)} onComment={(comment) => update("comment", comment)} />}
       <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
 
 
@@ -740,13 +754,24 @@ export default function EbtWeb() {
     </section>}
 
     {tab === "queue" && <section className="queue-panel">
-      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Settings to submit this queue to EuroBillTracker.</p>)}
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Settings to submit this queue to EuroBillTracker.</p>)}
+      {editingNote && <form className="queue-editor" onSubmit={(event) => {
+        event.preventDefault();
+        if (!denominations.includes(editingNote.denomination) || !isSerialValid(editingNote.serial) || !isCodeValid(editingNote.printerCode) || !editingNote.city.trim() || !editingNote.country.trim() || !editingNote.postalCode.trim() || editingNote.comment.length > 500 || /[\r\n\x00-\x1F]/.test(editingNote.comment)) {
+          setMessage("Check the serial checksum, printer code, denomination, city, country, postcode, and comment (up to 500 characters, one line).");
+          return;
+        }
+        setNotes((current) => current.map((note) => note.id === editingNote.id ? { ...editingNote, serial: clean(editingNote.serial), printerCode: clean(editingNote.printerCode) } : note));
+        setEditingNote(null);
+        setMessage("Queued note updated. Submit again when ready.");
+      }}><h2>Edit queued note</h2>{(["serial", "printerCode", "denomination", "country", "city", "postalCode", "comment"] as const).map((field) => <label key={field}>{({ serial: "Serial number", printerCode: "Printer code", denomination: "Denomination", country: "Country (English name)", city: "City", postalCode: "Postal code", comment: "Comment" })[field]}<input value={editingNote[field]} onChange={(event) => setEditingNote({ ...editingNote, [field]: event.target.value })} /></label>)}<div><button type="submit">Save changes</button><button type="button" onClick={() => setEditingNote(null)}>Cancel</button></div></form>}
+      <SubmissionReceipts key={account?.username || "signed-out"} receipts={receipts} />
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: {note.serial}</span><span>Printer code: {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><button aria-label={`Remove ${note.serial}`} onClick={() => removeNote(note.id)}>×</button></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
+      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: {note.serial}</span><span>Printer code: {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><small>Last hit is not supplied by EBT’s official API.</small></section>}<div className="scan-settings">
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}<div className="scan-settings">
         <h3>Scanning cameras</h3>
         <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
         <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
