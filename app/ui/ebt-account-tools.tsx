@@ -42,6 +42,7 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
   const shared = {
     id, value, placeholder, autoComplete: autoComplete || "off",
     onFocus: () => { setFocused(true); setFiltering(false); },
+    onClick: () => { setFocused(true); setFiltering(false); },
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setFocused(true); setFiltering(true); onChange(event.target.value); },
     onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Escape") { setFocused(false); event.stopPropagation(); } },
     "aria-describedby": focused && (matches.length || loading || error) ? listId : undefined,
@@ -51,7 +52,11 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
   }}>
     <label htmlFor={id}>{label}{multiline && <> <span>optional</span></>}</label>
     {multiline ? <textarea {...shared} rows={2} /> : <input {...shared} />}
-    {focused && <div id={listId} className="field-suggestions">
+    {focused && <div id={listId} className="field-suggestions" onPointerDown={(event) => {
+      // Keep the input focused until a suggestion or Retry click completes.
+      // Some browsers blur it without focusing the button, hiding it too soon.
+      if ((event.target as HTMLElement).closest("button")) event.preventDefault();
+    }}>
       {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onClick={() => { item.choose(); setFocused(false); }}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
       <LoadStatus loading={loading} error={error} retry={retry} />
     </div>}

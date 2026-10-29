@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block', hasTouch: true });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -28,7 +28,7 @@ const assert = require('node:assert/strict');
         const { notes } = route.request().postDataJSON();
         return respond({ results: notes.map((note, index) => ({ id: note.id, result: { status: [1, 0, 20][index], billId: index < 2 ? 42 + index : undefined } })) });
       }
-      if (url.searchParams.get('kind') === 'cities') return respond({ data: [{ city: 'Wien', country: 'Austria', top_zipcode: '1010', nrlocations: 2 }] });
+      if (url.searchParams.get('kind') === 'cities') return respond({ data: [{ city: 'Wien', country: 'Austria', top_zipcode: '1010', nrlocations: 2 }, { city: 'Bratislava', country: 'Slovakia', top_zipcode: '81101', nrlocations: 1 }] });
       if (url.searchParams.get('kind') === 'zipcodes') return respond({ data: ['1010', '1020'] });
       if (url.searchParams.get('kind') === 'comments') {
         if (failComments) return respond({ error: 'Temporary EBT failure' }, 502);
@@ -44,6 +44,25 @@ const assert = require('node:assert/strict');
     await page.getByRole('textbox', { name: 'City', exact: true }).click();
     await page.getByRole('button', { name: /Wien.*Austria.*1010/ }).click();
     assert.equal(await page.getByRole('textbox', { name: 'Postal code', exact: true }).inputValue(), '1010');
+    // Simulate browsers that blur the input without focusing a clicked button.
+    // A pointer interaction must keep its suggestion alive until activation.
+    await page.evaluate(() => {
+      document.addEventListener('pointerdown', (event) => {
+        if (!event.defaultPrevented && event.target.closest('.field-suggestions button')) document.activeElement?.blur();
+      });
+    });
+    await page.getByRole('textbox', { name: 'City', exact: true }).click();
+    const alternate = page.getByRole('button', { name: /Bratislava.*Slovakia.*81101/ });
+    const bounds = await alternate.boundingBox();
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.waitForFunction(() => document.getElementById('entry-city').value === 'Bratislava', undefined, { timeout: 3000 });
+    assert.equal(await page.getByRole('textbox', { name: 'Country', exact: true }).inputValue(), 'Slovakia');
+    assert.equal(await page.getByRole('textbox', { name: 'Postal code', exact: true }).inputValue(), '81101');
+    // Reopen the same input without moving focus away, then switch back.
+    await page.getByRole('textbox', { name: 'City', exact: true }).click();
+    const returnLocation = await page.getByRole('button', { name: /Wien.*Austria.*1010/ }).boundingBox();
+    await page.touchscreen.tap(returnLocation.x + returnLocation.width / 2, returnLocation.y + returnLocation.height / 2);
+    assert.equal(await page.getByRole('textbox', { name: 'City', exact: true }).inputValue(), 'Wien');
     await page.getByRole('textbox', { name: 'Postal code', exact: true }).click();
     await page.getByRole('button', { name: '1020', exact: true }).click();
     await page.getByRole('textbox', { name: /Comment/ }).click();
