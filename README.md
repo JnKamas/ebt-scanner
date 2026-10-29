@@ -8,7 +8,7 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 - Serial and printer-code format checks before a note enters the queue
 - A focused used-note entry flow
 - Saved location and reusable comments
-- Local persistent queue, CSV copy/export, and official EBT batch submission
+- Local persistent queue with a bottom submission action and official EBT batch submission
 - EBT sign-in using the official HTTPS API; password is never written to browser storage
 - Previous EBT cities, postcodes, and comments suggested inside the existing fields on focus; type to filter or click a suggestion, without additional dropdown controls
 - Submission receipts with individual errors, duplicate entry details, and editable queued notes
@@ -58,3 +58,5 @@ In Settings, click **Scan for cameras** and grant camera permission. The app bri
 Enable **Use this printer code for multiple notes** beside the printer-code input in Entry for a batch with the same printer code. Both manual and automatic queue additions retain that code. With automatic queueing enabled, subsequent scans go directly to the next serial number. Changing denomination clears the retained printer code; rescan or edit it when starting a different batch.
 
 Banknote scanning is enabled only after a denomination is selected. Each queued note shows its denomination, serial number, printer code, country, and city.
+
+Banknote flags beside serial and printer codes describe the note rather than the location where it was found. First-series serial flags identify the commissioning central bank country; Europa serial flags identify the printing works country. Printer-code flags identify the printing country using the corresponding series. Unknown codes show no flag. The serial mappings follow the [ECB design tables](https://www.ecb.europa.eu/euro/banknotes/current/design/html/index.en.html); first-series printing works follow the [Bundesbank reference](https://www.bundesbank.de/dynamic/action/en/tasks/cash-management/frequently-asked-questions/frequently-asked-questions-euro-banknotes/642706/frequently-asked-questions-about-the-euro-banknotes?contentId=640556&firstLetter=W). Local SVG flags come from [flag-icons](https://github.com/lipis/flag-icons), with its MIT license in public/flags/LICENSE.txt.

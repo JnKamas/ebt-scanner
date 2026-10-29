@@ -91,7 +91,12 @@ const assert = require('node:assert/strict');
     await page.setViewportSize({ width: 1366, height: 900 });
 
     await page.getByRole('button', { name: /Queue/ }).click();
-    await page.getByRole('button', { name: 'Submit 3 to EuroBillTracker' }).click();
+    assert.equal(await page.getByRole('button', { name: /CSV/ }).count(), 0);
+    assert.equal(await page.locator('.note-list').getByRole('img', { name: 'Commissioned by: Germany', exact: true }).count(), 3);
+    assert.equal(await page.locator('.note-list').getByRole('img', { name: 'Printed in: Germany', exact: true }).count(), 3);
+    await page.waitForFunction(() => [...document.querySelectorAll('.note-list .banknote-flag')].every((flag) => flag.complete && flag.naturalWidth > 0));
+    assert(await page.evaluate(() => Boolean(document.querySelector('.note-list').compareDocumentPosition(document.querySelector('.queue-submit')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    await page.getByRole('button', { name: 'Submit queue (3)' }).click();
     await page.getByText('Hit! This note has been found before.').waitFor();
     await page.getByText('Check the country (use its English name). Check the printer code.').waitFor();
     assert.equal(await page.locator('.note-list article').count(), 1);

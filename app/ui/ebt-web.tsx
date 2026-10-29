@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
 import { Receipt, SubmissionResult } from "../lib/ebt";
+import BanknoteFlag from "./banknote-flag";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 
 type Note = {
@@ -620,13 +621,6 @@ export default function EbtWeb() {
     setNotes((current) => current.filter((note) => note.id !== id));
   }
 
-  function copyQueue() {
-    const header = "serial,printer_code,denomination,country,city,postal_code,comment";
-    const rows = notes.map((note) => [note.serial, note.printerCode, note.denomination, note.country, note.city, note.postalCode, note.comment].map((value) => `\"${value.replaceAll('\"', '\"\"')}\"`).join(","));
-    navigator.clipboard.writeText([header, ...rows].join("\n"));
-    setMessage("Queue copied as CSV.");
-  }
-
   function applyEbtDefaults(ebtAccount: EbtAccount) {
     setDraft((current) => ({ ...current, country: current.country || ebtAccount.my_country || "", city: current.city || ebtAccount.my_city || "", postalCode: current.postalCode || ebtAccount.my_zip || "" }));
   }
@@ -731,14 +725,14 @@ export default function EbtWeb() {
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
         {!denominationOk && <p className="denomination-hint">Choose a denomination to enable scanning.</p>}
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <BanknoteFlag serial={draft.serial} printerCode={draft.printerCode} /> <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <div className="printer-entry">
             <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
             <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
           </div>
         </div>
         <div className="field-row">
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <BanknoteFlag serial={draft.serial} /> <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
         </div>
       </div>
@@ -748,7 +742,6 @@ export default function EbtWeb() {
     </section>}
 
     {tab === "queue" && <section className="queue-panel">
-      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       {editingNote && <form className="queue-editor" onSubmit={(event) => {
         event.preventDefault();
         if (!denominations.includes(editingNote.denomination) || !isSerialValid(editingNote.serial) || !isCodeValid(editingNote.printerCode) || !editingNote.city.trim() || !editingNote.country.trim() || !editingNote.postalCode.trim() || editingNote.comment.length > 500 || /[\r\n\x00-\x1F]/.test(editingNote.comment)) {
@@ -761,8 +754,11 @@ export default function EbtWeb() {
       }}><h2>Edit queued note</h2>{(["serial", "printerCode", "denomination", "country", "city", "postalCode", "comment"] as const).map((field) => <label key={field}>{({ serial: "Serial number", printerCode: "Printer code", denomination: "Denomination", country: "Country (English name)", city: "City", postalCode: "Postal code", comment: "Comment" })[field]}<input value={editingNote[field]} onChange={(event) => setEditingNote({ ...editingNote, [field]: event.target.value })} /></label>)}<div><button type="submit">Save changes</button><button type="button" onClick={() => setEditingNote(null)}>Cancel</button></div></form>}
       <SubmissionReceipts key={account?.username || "signed-out"} receipts={receipts} />
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><button className="export" onClick={copyQueue}>Copy queue as CSV</button><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: {note.serial}</span><span>Printer code: {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
+      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: <BanknoteFlag serial={note.serial} /> {note.serial}</span><span>Printer code: <BanknoteFlag serial={note.serial} printerCode={note.printerCode} /> {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
+      <div className="queue-submit">
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
+      </div>
     </section>}
 
     {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
