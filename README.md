@@ -49,7 +49,9 @@ On this Windows machine, PowerShell blocks the `npm` script shim. Use `npm.cmd r
 
 Vercel automatically recognizes the Next.js project; no environment variables are required.
 
-## Camera preferences and batches
+## Navigation, camera preferences and batches
+
+The bottom navigation contains **Entry**, **Queue**, **Profile**, and **Settings**. Use Profile for EBT sign-in, sign-out, statistics, and maps. Both printer-code and serial scans use a fixed **70% minimum OCR confidence**; old saved thresholds are ignored and confidence sliders are no longer shown.
 
 In Settings, click **Scan for cameras** and grant camera permission. The app briefly opens the camera, lists all video inputs exposed by the browser while access is active, then releases it. Both dropdowns show the complete returned camera list, including front and rear cameras. Choose a camera independently for the printer code and serial number. **Scan preview** opens a 15-second focus test without OCR or changing note values. Preferences stay in this browser. If a saved camera is disconnected, scanning falls back to the default camera. Some browsers expose fewer cameras than the phone has physical lenses; the app reports when only one is available.
 

@@ -26,7 +26,7 @@ type EbtAccount = {
   totalhits: number;
 };
 
-type Tab = "entry" | "queue" | "settings";
+type Tab = "entry" | "queue" | "profile" | "settings";
 type ScanTarget = "printerCode" | "serial";
 type CameraPreference = { deviceId: string };
 const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "" }, serial: { deviceId: "" } });
@@ -37,6 +37,7 @@ type PaddleItem = { text: string; score: number; poly: Array<[number, number]> }
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 type OcrStatus = "loading" | "ready" | "error";
 
+const minimumOcrConfidence = 0.7;
 const denominations = ["5", "10", "20", "50", "100", "200", "500"];
 const blankDraft = () => ({ serial: "", printerCode: "", denomination: "", country: "", city: "", postalCode: "", comment: "" });
 
@@ -97,8 +98,6 @@ export default function EbtWeb() {
   const [cameraPreviewOnly, setCameraPreviewOnly] = useState(false);
   const previewOnlyRef = useRef(false);
   const cameraRequestRef = useRef(0);
-  const [printerConfidence, setPrinterConfidence] = useState(0);
-  const [serialConfidence, setSerialConfidence] = useState(0);
   const draftRef = useRef(draft);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
@@ -141,10 +140,6 @@ export default function EbtWeb() {
     const savedSeconds = Number(window.localStorage.getItem("ebt-web-result-display-seconds"));
     if (Number.isFinite(savedSeconds) && savedSeconds >= 1 && savedSeconds <= 15) setResultDisplaySeconds(savedSeconds);
     setAutoQueueNext(window.localStorage.getItem("ebt-web-auto-queue-next") === "true");
-    const savedPrinterConfidence = Number(window.localStorage.getItem("ebt-web-printer-confidence"));
-    if (Number.isFinite(savedPrinterConfidence) && savedPrinterConfidence >= 0 && savedPrinterConfidence <= 1) setPrinterConfidence(savedPrinterConfidence);
-    const savedSerialConfidence = Number(window.localStorage.getItem("ebt-web-serial-confidence"));
-    if (Number.isFinite(savedSerialConfidence) && savedSerialConfidence >= 0 && savedSerialConfidence <= 1) setSerialConfidence(savedSerialConfidence);
     setReusePrinterCode(window.localStorage.getItem("ebt-web-reuse-printer-code") === "true");
     try {
       const saved = JSON.parse(window.localStorage.getItem("ebt-web-cameras") || "null");
@@ -215,14 +210,6 @@ export default function EbtWeb() {
   useEffect(() => {
     window.localStorage.setItem("ebt-web-auto-queue-next", String(autoQueueNext));
   }, [autoQueueNext]);
-
-  useEffect(() => {
-    window.localStorage.setItem("ebt-web-printer-confidence", String(printerConfidence));
-  }, [printerConfidence]);
-
-  useEffect(() => {
-    window.localStorage.setItem("ebt-web-serial-confidence", String(serialConfidence));
-  }, [serialConfidence]);
 
   useEffect(() => {
     void fetch("/api/ebt/session", { cache: "no-store" })
@@ -325,10 +312,8 @@ export default function EbtWeb() {
   }
 
   function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
-    const minimumConfidence = target === "printerCode" ? printerConfidence : serialConfidence;
-    // We request all results from PaddleOCR, then apply the user-selected
-    // threshold here so the actual score remains visible for debugging.
-    const readable = items.filter((item) => item.score >= minimumConfidence && item.poly.length > 0);
+    // Apply the fixed 70% minimum to every OCR item, including joined groups.
+    const readable = items.filter((item) => item.score >= minimumOcrConfidence && item.poly.length > 0);
     const boxFor = (item: PaddleItem): ScanBox => {
       const x = item.poly.map(([pointX]) => pointX);
       const y = item.poly.map(([, pointY]) => pointY);
@@ -763,7 +748,7 @@ export default function EbtWeb() {
     </section>}
 
     {tab === "queue" && <section className="queue-panel">
-      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Settings to submit this queue to EuroBillTracker.</p>)}
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit ${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)} to EuroBillTracker`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       {editingNote && <form className="queue-editor" onSubmit={(event) => {
         event.preventDefault();
         if (!denominations.includes(editingNote.denomination) || !isSerialValid(editingNote.serial) || !isCodeValid(editingNote.printerCode) || !editingNote.city.trim() || !editingNote.country.trim() || !editingNote.postalCode.trim() || editingNote.comment.length > 500 || /[\r\n\x00-\x1F]/.test(editingNote.comment)) {
@@ -780,7 +765,9 @@ export default function EbtWeb() {
       {message && <p className="notice" role="status">{message}</p>}
     </section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}<div className="scan-settings">
+    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
+
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>
         <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
         <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
@@ -794,8 +781,13 @@ export default function EbtWeb() {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
-        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><label className="confidence-setting"><span>Printer-code minimum confidence <b>{Math.round(printerConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(printerConfidence * 100)} onChange={(event) => setPrinterConfidence(Number(event.target.value) / 100)} /></label><label className="confidence-setting"><span>Serial-number minimum confidence <b>{Math.round(serialConfidence * 100)}%</b></span><input type="range" min="0" max="100" value={Math.round(serialConfidence * 100)} onChange={(event) => setSerialConfidence(Number(event.target.value) / 100)} /></label><small>0% accepts every OCR score; format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}<div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least 70% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div><div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
-    <nav className="bottom-nav" aria-label="Main navigation"><button className={tab === "entry" ? "active" : ""} onClick={() => setTab("entry")}><span>＋</span>Entry</button><button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}><span>≡</span>Queue{notes.length > 0 && <b>{notes.length}</b>}</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>Settings</button></nav>
+    <nav className="bottom-nav" aria-label="Main navigation">
+      {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>
+        <span aria-hidden="true">{item === "profile" ? <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></svg> : { entry: "+", queue: "\u2261", settings: "\u2699" }[item]}</span>
+        {{ entry: "Entry", queue: "Queue", profile: "Profile", settings: "Settings" }[item]}{item === "queue" && notes.length > 0 && <b>{notes.length}</b>}
+      </button>)}
+    </nav>
   </main>;
 }
