@@ -615,12 +615,6 @@ export default function EbtWeb() {
     );
   }
 
-  function saveLocation() {
-    const location = { country: draft.country, city: draft.city, postalCode: draft.postalCode };
-    window.localStorage.setItem("ebt-web-location", JSON.stringify(location));
-    setMessage("Location saved for your next note.");
-  }
-
   function addNote(keepLocationAndComment = false) {
     const currentDraft = draftRef.current;
     const currentReady = denominations.includes(currentDraft.denomination) && isSerialValid(currentDraft.serial) && isCodeValid(currentDraft.printerCode) && Boolean(currentDraft.city.trim()) && Boolean(currentDraft.country.trim());
@@ -751,7 +745,6 @@ export default function EbtWeb() {
         {account && <PreviousLocations key={account.username} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />}
         <label>Country<input value={draft.country} onChange={(e) => update("country", e.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
         <div className="two-fields"><label>City<input value={draft.city} onChange={(e) => update("city", e.target.value)} placeholder="Bratislava" autoComplete="address-level2" /></label><label>Postal code<input value={draft.postalCode} onChange={(e) => update("postalCode", e.target.value)} placeholder="811 01" autoComplete="postal-code" /></label></div>
-        <button className="text-button" onClick={saveLocation}>Remember this location</button>
       </div>
       {account && <LocationSuggestions key={account.username} location={draft} onZip={(zip) => update("postalCode", zip)} onComment={(comment) => update("comment", comment)} />}
       <label className="comment">Comment <span>optional</span><textarea value={draft.comment} onChange={(e) => update("comment", e.target.value)} placeholder="e.g. supermarket, change" rows={2} /></label>
