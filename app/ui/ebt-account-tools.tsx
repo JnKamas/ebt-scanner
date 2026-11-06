@@ -88,7 +88,7 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
         <SuggestedField id="entry-postcode" label="Postal code" value={location.postalCode} placeholder="811 01" autoComplete="postal-code" onChange={(value) => onChange("postalCode", value)} {...zips} suggestions={(zips.data?.data || []).filter(Boolean).map((zip) => ({ value: zip, label: zip, choose: () => onChange("postalCode", zip) }))} />
       </div>
     </div>
-    <SuggestedField id="entry-comment" label="Comment" value={comment} placeholder="e.g. supermarket, change" multiline onChange={(value) => onChange("comment", value)} {...comments} suggestions={(comments.data?.data || []).filter((item) => item.comment).map((item) => ({ value: item.comment, label: item.comment, detail: `${item.amount} notes`, choose: () => onChange("comment", item.comment) }))} />
+    <SuggestedField id="entry-comment" label="Comment" value={comment} placeholder="e.g. ATM, supermarket" multiline onChange={(value) => onChange("comment", value)} {...comments} suggestions={(comments.data?.data || []).filter((item) => item.comment).map((item) => ({ value: item.comment, label: item.comment, detail: `${item.amount} notes`, choose: () => onChange("comment", item.comment) }))} />
   </>;
 }
 
