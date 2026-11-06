@@ -2,7 +2,7 @@
 
 Reviewed 2026-11-06. The review covered the scanner, entry/edit/queue flows, authentication, API routes, local persistence, service worker, and dependency lockfile. All EBT operations in automated tests use fixtures; no real credentials or notes are submitted.
 
-Validation completed: **45 unit/API/security/asset-integrity tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency versions unchanged by the deduplication and open-source preparation passes).
+Validation completed: **45 unit/API/security/asset-integrity tests**, **27 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency versions unchanged by subsequent refactoring and release preparation).
 
 Open-source release files now include the MIT [LICENSE](LICENSE), [contribution guide](CONTRIBUTING.md), [security policy](SECURITY.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [third-party notices](THIRD_PARTY_NOTICES.md). The active OCR models and runtime have recorded upstream sources and SHA-256 hashes; model weights also match the official model cards. An asset-integrity test prevents unrecorded replacements. Unused legacy runtime copies were removed. Repository visibility and GitHub private-reporting settings require separate verification in GitHub.
 
@@ -21,7 +21,7 @@ Additional regressions verify joined OCR text, spatial/confidence rejection, com
 | OCR could invent codes from numeric strings or truncate longer text | Require an entire six-character candidate and at least one observed letter; apply I/1/l correction only in positions fixed by the code structure | `printer-code-ocr.test.cjs`; live scanner browser tests |
 | Drafts and location edits disappeared on reload | Persist a whitelist of draft fields, including comments, alongside the queue | `storage.test.cjs`; draft reload browser test |
 | Entry, editing and server validation differed | Share checksum, printer format, required-field and length/control-character checks; keep postcode optional | `note-validation.test.cjs`; mutation and queue editor tests |
-| Missing frames or playback failures escaped the scan deadline | Start the deadline when the camera preview opens; retry missing frames; stop camera on timeout | Missing-frame, failed-playback and failed-encoding browser tests |
+| Missing frames or playback failures escaped the scan deadline | Bound startup separately; reveal the selected camera only after a usable frame and then start the full 15-second live window | Missing-frame, failed-playback, failed-encoding, warmup and loading/cancellation browser tests |
 | Offline shell lacked its production assets | Generate a versioned service worker after each build and precache the document and matching build assets; never cache API/RSC responses | `service-worker.test.cjs`; first-visit offline reload/manual-entry browser test |
 | JSON null or wrong-shaped bodies threw exceptions | Stream and bound request bodies, then require an object before accessing fields | `mutations.test.cjs` |
 

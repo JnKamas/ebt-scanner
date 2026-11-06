@@ -258,21 +258,39 @@ export default function EbtWeb() {
     const video = videoRef.current;
     const stream = streamRef.current;
     let cancelled = false;
-    // The deadline also covers missing metadata, failed playback, and failed crops.
-    scanTimeoutRef.current = window.setTimeout(() => {
-      const preview = previewOnlyRef.current;
-      const target = targetRef.current;
-      stopCamera();
-      setMessage(preview ? "Camera preview finished. Your camera choice is saved; no note values were changed." : `No valid banknote ${labelFor(target)} found in 15 seconds. Check camera permission, lighting and focus, then retry or enter the code manually.`);
-    }, 15000);
+    let frameCallback: number | null = null;
+    let framePoll: number | null = null;
+    const deadline = (message: string) => {
+      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = window.setTimeout(() => {
+        stopCamera();
+        setMessage(message);
+      }, 15000);
+    };
+    // Bound startup failures separately so loading never consumes live scan time.
+    deadline("The camera preview could not start. Close other camera apps, check permissions, and retry or enter the code manually.");
 
+    const revealPreview = () => {
+      if (cancelled || !cameraActiveRef.current || video.srcObject !== stream) return;
+      if (!video.videoWidth || !video.videoHeight || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        waitForFrame();
+        return;
+      }
+      setPreviewReady(true);
+      deadline(previewOnlyRef.current
+        ? "Camera preview finished. Your camera choice is saved; no note values were changed."
+        : `No valid banknote ${labelFor(targetRef.current)} found in 15 seconds. Check camera permission, lighting and focus, then retry or enter the code manually.`);
+      if (!previewOnlyRef.current) void readFrame();
+    };
+    const waitForFrame = () => {
+      if (cancelled) return;
+      if (typeof video.requestVideoFrameCallback === "function") frameCallback = video.requestVideoFrameCallback(revealPreview);
+      else framePoll = window.setTimeout(revealPreview, 50);
+    };
     const startPreview = async () => {
       try {
         await video.play();
-        if (!cancelled) {
-          setPreviewReady(true);
-          if (!previewOnlyRef.current) void readFrame();
-        }
+        waitForFrame();
       } catch {
         if (!cancelled) setCameraHint("The webcam started, but its preview could not play. Try closing and scanning again.");
       }
@@ -284,12 +302,14 @@ export default function EbtWeb() {
 
     return () => {
       cancelled = true;
+      if (frameCallback !== null) video.cancelVideoFrameCallback(frameCallback);
+      if (framePoll !== null) window.clearTimeout(framePoll);
       video.removeEventListener("loadedmetadata", startPreview);
       video.srcObject = null;
     };
   }, [cameraOpen, cameraSession]);
 
-  function stopCamera() {
+  function releaseCamera() {
     cameraRequestRef.current += 1;
     setCameraPending(false);
     cameraActiveRef.current = false;
@@ -298,10 +318,14 @@ export default function EbtWeb() {
     clearResultCountdown();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    setCameraOpen(false);
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult(null);
+  }
+
+  function stopCamera() {
+    releaseCamera();
+    setCameraOpen(false);
   }
 
   function clearResultCountdown() {
@@ -473,7 +497,8 @@ export default function EbtWeb() {
       setMessage("Live camera is unavailable here. Open the app at localhost and allow camera access in your browser settings, or enter the values manually.");
       return;
     }
-    stopCamera();
+    releaseCamera();
+    setCameraOpen(true);
     const request = ++cameraRequestRef.current;
     setCameraPending(true);
     previewOnlyRef.current = previewOnly;
@@ -503,14 +528,12 @@ export default function EbtWeb() {
       cameraActiveRef.current = true;
       setPreviewReady(false);
       setScanResult(null);
-      setCameraOpen(true);
       setCameraSession((current) => current + 1);
       setIsScanning(true);
       setMessage("");
     } catch (error) {
       if (request !== cameraRequestRef.current) return;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+      stopCamera();
       setMessage(error instanceof DOMException && error.name === "NotAllowedError"
         ? "Camera access was blocked. Allow this site to use your camera in browser settings, then click Scan again."
         : "Could not start this camera. Close other camera apps or choose another camera in Settings, then click Scan again.");
@@ -679,7 +702,7 @@ export default function EbtWeb() {
         <div className="camera-toolbar">
           <div className="camera-context">
             <small>€{draft.denomination || "—"}{(scanResult?.target ?? scanTarget) === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
-            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `${cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
+            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `${!previewReady ? "Preparing" : cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
           </div>
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
@@ -691,13 +714,13 @@ export default function EbtWeb() {
           <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultSecondsRemaining}s.</small></div>
           <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
         </> : <>
-          <div className="camera-preview">
+          <div className="camera-preview" aria-busy={!previewReady}>
             <video ref={videoRef} autoPlay playsInline muted />
             <span className="live-label"><i /> LIVE CAMERA</span>
-            {!previewReady && <span className="preview-loading">Starting webcam preview…</span>}
+            {!previewReady && <div className="preview-loading" role="status"><span className="camera-spinner" aria-hidden="true" /><strong>Preparing camera...</strong><small>Your selected camera will appear when ready.</small></div>}
             <div ref={cameraFrameRef} className="camera-frame" aria-hidden="true" />
           </div>
-          <p className="camera-hint"><i /> {cameraHint}</p>
+          <p className="camera-hint">{previewReady && <i />} {previewReady ? cameraHint : cameraPending ? "Allow camera access if your browser asks." : "Getting the preview ready..."}</p>
         </>}
       </div>}
 
