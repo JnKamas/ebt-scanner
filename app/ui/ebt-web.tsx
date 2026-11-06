@@ -63,6 +63,7 @@ function isCodeValid(code: string) {
 
 export default function EbtWeb() {
   const [tab, setTab] = useState<Tab>("entry");
+  const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
   const [draft, setDraft] = useState(blankDraft);
   const [notes, setNotes] = useState<Note[]>([]);
   const [account, setAccount] = useState<EbtAccount | null>(null);
@@ -111,6 +112,16 @@ export default function EbtWeb() {
   const scanTimeoutRef = useRef<number | null>(null);
   const resultTimeoutRef = useRef<number | null>(null);
   const resultCountdownRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent;
+    if (/Windows/i.test(userAgent)) return;
+    if (/Android/i.test(userAgent)) setInstallPlatform("android");
+    else if (/iPhone|iPad|iPod/i.test(userAgent) || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1)) {
+      // iPadOS can identify itself as a Mac when requesting desktop websites.
+      setInstallPlatform("ios");
+    }
+  }, []);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("ebt-web-queue");
@@ -777,7 +788,7 @@ export default function EbtWeb() {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
-        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least 70% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div><div className="setting"><span>Install on iPhone</span><small>In Safari: Share → Add to Home Screen</small></div><div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least 70% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>
