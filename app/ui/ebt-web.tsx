@@ -6,18 +6,8 @@ import { Receipt, SubmissionResult } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { printerCodeFromOcr } from "../lib/printer-code-ocr";
-
-type Note = {
-  id: string;
-  serial: string;
-  printerCode: string;
-  denomination: string;
-  country: string;
-  city: string;
-  postalCode: string;
-  comment: string;
-  createdAt: string;
-};
+import { blankDraft, clean, denominations, isCodeValid, isSerialValid, noteErrors, Note } from "../lib/note-validation";
+import { readLocalState, writeLocalState } from "../lib/local-state";
 
 type EbtAccount = {
   username: string;
@@ -40,33 +30,15 @@ type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) =
 type OcrStatus = "loading" | "ready" | "error";
 
 const minimumOcrConfidence = 0.7;
-const denominations = ["5", "10", "20", "50", "100", "200", "500"];
-const blankDraft = () => ({ serial: "", printerCode: "", denomination: "", country: "", city: "", postalCode: "", comment: "" });
-
-function clean(value: string) {
-  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function isSerialValid(serial: string) {
-  const value = clean(serial);
-  const digitSum = (digits: string) => [...digits].reduce((total, digit) => total + Number(digit), 0);
-  if (/^[A-Z]\d{11}$/.test(value)) return (value.charCodeAt(0) + digitSum(value.slice(1))) % 9 === 0;
-  if (/^[A-Z]{2}\d{10}$/.test(value)) {
-    const letterValue = (letter: string) => letter.charCodeAt(0) - 64;
-    return (letterValue(value[0]) + letterValue(value[1]) + digitSum(value.slice(2))) % 9 === 7;
-  }
-  return false;
-}
-
-function isCodeValid(code: string) {
-  return /^[A-Z]\d{3}[A-Z][1-9]$/.test(clean(code));
-}
-
 export default function EbtWeb() {
   const [tab, setTab] = useState<Tab>("entry");
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
   const [draft, setDraft] = useState(blankDraft);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageError, setStorageError] = useState("");
+  const storageBlockedRef = useRef(false);
+  const [uncertainIds, setUncertainIds] = useState<string[]>([]);
   const [account, setAccount] = useState<EbtAccount | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -76,12 +48,21 @@ export default function EbtWeb() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const accountRequestRef = useRef(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [messages, setMessages] = useState<Partial<Record<Tab, string>>>({});
   const message = messages[tab] || "";
   function setMessage(value: string) {
     // Async actions retain their originating tab, so scan results stay in Entry.
     setMessages((current) => ({ ...current, [tab]: value }));
+  }
+  function readPreference(key: string) {
+    try { return window.localStorage.getItem(key); } catch { return null; }
+  }
+  function writePreference(key: string, value: string) {
+    try { window.localStorage.setItem(key, value); }
+    catch { setStorageError("Browser storage is unavailable or full. Your latest changes could not be saved."); }
   }
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
@@ -107,6 +88,7 @@ export default function EbtWeb() {
   const previewOnlyRef = useRef(false);
   const cameraRequestRef = useRef(0);
   const draftRef = useRef(draft);
+  const notesRef = useRef(notes);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -130,15 +112,21 @@ export default function EbtWeb() {
   }, []);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("ebt-web-queue");
-    if (saved) setNotes(JSON.parse(saved));
-    const savedLocation = window.localStorage.getItem("ebt-web-location");
-    if (savedLocation) setDraft((current) => ({ ...current, ...JSON.parse(savedLocation) }));
+    try {
+      const saved = readLocalState(window.localStorage);
+      setNotes(saved.notes);
+      setUncertainIds(saved.pendingIds);
+      setDraft(saved.draft);
+      storageBlockedRef.current = Boolean(saved.error);
+      setStorageError(saved.error);
+    } catch {
+      storageBlockedRef.current = true;
+      setStorageError("Browser storage is unavailable. Your notes cannot be saved; keep this page open.");
+    }
+    setStorageReady(true);
     if ("serviceWorker" in navigator) {
       if (process.env.NODE_ENV === "production") {
-        navigator.serviceWorker.register("/sw.js").then(() => {
-          navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
-        }).catch(() => undefined);
+        void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
       } else {
         navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister()));
         window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key))));
@@ -147,20 +135,23 @@ export default function EbtWeb() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("ebt-web-queue", JSON.stringify(notes));
-  }, [notes]);
+    if (!storageReady || storageBlockedRef.current) return;
+    try { setStorageError(writeLocalState(window.localStorage, notes, draft)); }
+    catch { setStorageError("Browser storage is unavailable. Your notes cannot be saved; keep this page open."); }
+  }, [notes, draft, storageReady]);
 
   useEffect(() => {
     draftRef.current = draft;
-  }, [draft]);
+    notesRef.current = notes;
+  }, [draft, notes]);
 
   useEffect(() => {
-    const savedSeconds = Number(window.localStorage.getItem("ebt-web-result-display-seconds"));
+    const savedSeconds = Number(readPreference("ebt-web-result-display-seconds"));
     if (Number.isFinite(savedSeconds) && savedSeconds >= 1 && savedSeconds <= 15) setResultDisplaySeconds(savedSeconds);
-    setAutoQueueNext(window.localStorage.getItem("ebt-web-auto-queue-next") === "true");
-    setReusePrinterCode(window.localStorage.getItem("ebt-web-reuse-printer-code") === "true");
+    setAutoQueueNext(readPreference("ebt-web-auto-queue-next") === "true");
+    setReusePrinterCode(readPreference("ebt-web-reuse-printer-code") === "true");
     try {
-      const saved = JSON.parse(window.localStorage.getItem("ebt-web-cameras") || "null");
+      const saved = JSON.parse(readPreference("ebt-web-cameras") || "null");
       if (saved) setCameraPreferences(Object.fromEntries((["printerCode", "serial"] as const).map((target) => [target, {
         deviceId: typeof saved[target]?.deviceId === "string" ? saved[target].deviceId : "",
       }])) as Record<ScanTarget, CameraPreference>);
@@ -170,8 +161,8 @@ export default function EbtWeb() {
 
   useEffect(() => {
     if (!preferencesReady) return;
-    window.localStorage.setItem("ebt-web-cameras", JSON.stringify(cameraPreferences));
-    window.localStorage.setItem("ebt-web-reuse-printer-code", String(reusePrinterCode));
+    writePreference("ebt-web-cameras", JSON.stringify(cameraPreferences));
+    writePreference("ebt-web-reuse-printer-code", String(reusePrinterCode));
   }, [cameraPreferences, reusePrinterCode, preferencesReady]);
 
   useEffect(() => {
@@ -222,17 +213,20 @@ export default function EbtWeb() {
   }
 
   useEffect(() => {
-    window.localStorage.setItem("ebt-web-result-display-seconds", String(resultDisplaySeconds));
-  }, [resultDisplaySeconds]);
+    if (!preferencesReady) return;
+    writePreference("ebt-web-result-display-seconds", String(resultDisplaySeconds));
+  }, [resultDisplaySeconds, preferencesReady]);
 
   useEffect(() => {
-    window.localStorage.setItem("ebt-web-auto-queue-next", String(autoQueueNext));
-  }, [autoQueueNext]);
+    if (!preferencesReady) return;
+    writePreference("ebt-web-auto-queue-next", String(autoQueueNext));
+  }, [autoQueueNext, preferencesReady]);
 
   useEffect(() => {
+    const request = accountRequestRef.current;
     void fetch("/api/ebt/session", { cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : null)
-      .then((data: { account?: EbtAccount | null } | null) => setAccount(data?.account ?? null))
+      .then((data: { account?: EbtAccount | null } | null) => { if (request === accountRequestRef.current) setAccount(data?.account ?? null); })
       .catch(() => undefined);
   }, []);
 
@@ -245,7 +239,6 @@ export default function EbtWeb() {
   const serialOk = isSerialValid(clean(draft.serial));
   const codeOk = isCodeValid(clean(draft.printerCode));
   const denominationOk = denominations.includes(draft.denomination);
-  const ready = denominationOk && serialOk && codeOk && Boolean(draft.city.trim()) && Boolean(draft.country.trim());
   const total = useMemo(() => notes.reduce((sum, note) => sum + Number(note.denomination), 0), [notes]);
   const notesPerHit = account && Number(account.totalhits) > 0 ? (Number(account.totalbills) / Number(account.totalhits)).toFixed(1) : "—";
 
@@ -277,18 +270,20 @@ export default function EbtWeb() {
     const video = videoRef.current;
     const stream = streamRef.current;
     let cancelled = false;
+    // The deadline also covers missing metadata, failed playback, and failed crops.
+    scanTimeoutRef.current = window.setTimeout(() => {
+      const preview = previewOnlyRef.current;
+      const target = targetRef.current;
+      stopCamera();
+      setMessage(preview ? "Camera preview finished. Your camera choice is saved; no note values were changed." : `No valid banknote ${labelFor(target)} found in 15 seconds. Check camera permission, lighting and focus, then retry or enter the code manually.`);
+    }, 15000);
 
     const startPreview = async () => {
       try {
         await video.play();
         if (!cancelled) {
           setPreviewReady(true);
-          if (previewOnlyRef.current) {
-            scanTimeoutRef.current = window.setTimeout(() => {
-              stopCamera();
-              setMessage("Camera preview finished. Your camera choice is saved; no note values were changed.");
-            }, 15000);
-          } else void readFrame();
+          if (!previewOnlyRef.current) void readFrame();
         }
       } catch {
         if (!cancelled) setCameraHint("The webcam started, but its preview could not play. Try closing and scanning again.");
@@ -337,11 +332,9 @@ export default function EbtWeb() {
       const y = item.poly.map(([, pointY]) => pointY);
       return { x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) };
     };
-    const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
-    const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
     const validFrom = (text: string) => target === "printerCode"
       ? printerCodeFromOcr(text)
-      : (clean(text).match(matcher) ?? []).find(isValid);
+      : (isSerialValid(clean(text)) ? clean(text) : undefined);
 
     for (const item of readable) {
       const valid = validFrom(item.text);
@@ -465,7 +458,11 @@ export default function EbtWeb() {
   }
 
   async function readFrame() {
-    if (!cameraActiveRef.current || readingFrameRef.current || !videoRef.current?.videoWidth) return;
+    if (!cameraActiveRef.current || readingFrameRef.current) return;
+    if (!videoRef.current?.videoWidth) {
+      window.setTimeout(() => { if (cameraActiveRef.current) void readFrame(); }, 100);
+      return;
+    }
     readingFrameRef.current = true;
     const request = cameraRequestRef.current;
     const target = targetRef.current;
@@ -501,13 +498,6 @@ export default function EbtWeb() {
       setCameraHint(ocrRef.current ? "Recognizing the guide area…" : "Preparing on-device recognition…");
       const ocr = await getOcr();
       if (!cameraActiveRef.current || request !== cameraRequestRef.current) return;
-      if (!scanTimeoutRef.current) {
-        scanTimeoutRef.current = window.setTimeout(() => {
-          if (!cameraActiveRef.current) return;
-          stopCamera();
-          setMessage(`No valid banknote ${labelFor(target)} found in 15 seconds. Centre it inside the frame and try again.`);
-        }, 15000);
-      }
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
@@ -622,15 +612,7 @@ export default function EbtWeb() {
 
   function addNote(keepLocationAndComment = false) {
     const currentDraft = draftRef.current;
-    const errors: string[] = [];
-    if (!denominations.includes(currentDraft.denomination)) errors.push("Denomination: choose a euro banknote value.");
-    if (!clean(currentDraft.printerCode)) errors.push("Printer code: enter or scan the code.");
-    else if (!isCodeValid(currentDraft.printerCode)) errors.push("Printer code: use 1 letter, 3 digits, 1 letter, and a final digit from 1 to 9 (for example, R001A1).");
-    if (!clean(currentDraft.serial)) errors.push("Serial number: enter or scan the number.");
-    else if (!/^(?:[A-Z]\d{11}|[A-Z]{2}\d{10})$/.test(clean(currentDraft.serial))) errors.push("Serial number: use 1 letter and 11 digits, or 2 letters and 10 digits.");
-    else if (!isSerialValid(currentDraft.serial)) errors.push("Serial number: checksum failed. Check each letter and digit against the banknote.");
-    if (!currentDraft.country.trim()) errors.push("Country: enter where you found the note.");
-    if (!currentDraft.city.trim()) errors.push("City: enter where you found the note.");
+    const errors = noteErrors(currentDraft);
     if (errors.length) {
       setMessage(errors.join(" "));
       return false;
@@ -655,6 +637,7 @@ export default function EbtWeb() {
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isLoggingIn) return;
+    accountRequestRef.current += 1;
     setIsLoggingIn(true);
     setMessage("");
     try {
@@ -674,35 +657,65 @@ export default function EbtWeb() {
   }
 
   async function logout() {
-    await fetch("/api/ebt/logout", { method: "POST" }).catch(() => undefined);
-    setAccount(null);
-    setReceipts([]);
-    setPassword("");
-    setMessage("Signed out of EuroBillTracker on this device.");
+    if (isLoggingOut) return;
+    accountRequestRef.current += 1;
+    setIsLoggingOut(true);
+    try {
+      const response = await fetch("/api/ebt/logout", { method: "POST", headers: { "Content-Type": "application/json" } });
+      if (!response.ok) throw new Error("Sign-out failed");
+      setAccount(null);
+      setReceipts([]);
+      setPassword("");
+      setMessage("Signed out of EuroBillTracker on this device.");
+    } catch {
+      setMessage("Could not sign out. Your browser session may still be active. Check your connection and retry Sign out.");
+    } finally { setIsLoggingOut(false); }
   }
 
   async function submitQueue() {
-    if (!account || isSubmitting || editingNote || notes.length === 0) return;
+    if (!account || isSubmitting || editingNote || notes.length === 0 || uncertainIds.length > 0) return;
     const first = notes[0];
     const batch = notes.filter((note) => note.country === first.country && note.city === first.city && note.postalCode === first.postalCode).slice(0, 25);
+    const pendingIds = batch.map((note) => note.id);
+    try { window.localStorage.setItem("ebt-web-pending-submission", JSON.stringify(pendingIds)); }
+    catch { setMessage("Cannot save submission status in this browser. Free browser storage before submitting."); return; }
+    setUncertainIds(pendingIds);
+    let outcomeUnknown = true;
     setIsSubmitting(true);
     setMessage(`Sending ${batch.length} note${batch.length === 1 ? "" : "s"} to EuroBillTracker…`);
     try {
       const response = await fetch("/api/ebt/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: batch }) });
-      const data = await response.json() as { results?: Array<{ id: string; result: SubmissionResult | null }>; error?: string };
-      if (!response.ok || !data.results) throw new Error(data.error || "EBT could not receive the notes.");
+      const data = await response.json() as { results?: Array<{ id: string; result: SubmissionResult | null }>; error?: string; outcome?: string };
+      if (!response.ok || !data.results) {
+        outcomeUnknown = data.outcome === "unknown";
+        throw new Error(data.error || "EBT did not confirm the submission. Check EBT before retrying.");
+      }
+      outcomeUnknown = data.results.length !== batch.length || data.results.some((item) => !item.result || !Number.isSafeInteger(Number(item.result.status)));
       setReceipts(batch.map((note) => ({ id: note.id, serial: note.serial, denomination: note.denomination, result: data.results!.find((item) => item.id === note.id)?.result ?? null })));
       const successful = data.results.filter(({ result }) => result && (Number(result.status) === 0 || Number(result.status) === 1));
       const hits = successful.filter(({ result }) => Number(result?.status) === 1).length;
-      if (successful.length) setNotes((current) => current.filter((note) => !successful.some(({ id }) => id === note.id)));
+      if (successful.length) {
+        const remaining = notesRef.current.filter((note) => !successful.some(({ id }) => id === note.id));
+        setNotes(remaining);
+        // Save confirmed removals before clearing the pending marker. A reload
+        // must never restore accepted notes as safe to send again.
+        const saveError = writeLocalState(window.localStorage, remaining, draftRef.current);
+        if (saveError) { outcomeUnknown = true; setStorageError(saveError); }
+      }
       const failed = batch.length - successful.length;
       setMessage(`${successful.length} note${successful.length === 1 ? "" : "s"} submitted${hits ? `, including ${hits} hit${hits === 1 ? "" : "s"}` : ""}.${failed ? ` ${failed} stayed in the queue because EBT rejected it.` : ""}`);
       // Refresh totals independently; a failed refresh must never undo a submission.
+      const accountRequest = accountRequestRef.current;
       void fetch("/api/ebt/session", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null)
-        .then((session) => { if (session?.account) setAccount(session.account); }).catch(() => undefined);
+        .then((session) => { if (session?.account && accountRequest === accountRequestRef.current) setAccount(session.account); }).catch(() => undefined);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "EBT could not receive the notes. They remain in your queue.");
+      // A dropped browser response can follow a successful upstream insertion.
+      setMessage(outcomeUnknown ? "Submission outcome unknown. EBT may have received the notes. Check EBT before retrying; notes remain queued." : error instanceof Error ? error.message : "Could not submit the notes.");
     } finally {
+      if (!outcomeUnknown) {
+        try { window.localStorage.setItem("ebt-web-pending-submission", "[]"); setUncertainIds([]); }
+        catch { setStorageError("Could not clear the saved submission status. Check EBT before retrying."); }
+      }
       setIsSubmitting(false);
     }
   }
@@ -712,6 +725,7 @@ export default function EbtWeb() {
       <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Web</b></span></div>
     </header>
 
+    {storageError && <p className="notice" role="alert">{storageError}</p>}
     {ocrStatus !== "ready" && <section className={`ocr-progress ${ocrStatus === "error" ? "ocr-progress-error" : ""}`} role="status" aria-live="polite">
       <div><strong>{ocrStatus === "error" ? "Scanner could not prepare" : "Preparing scanner"}</strong><span>{ocrStatus === "error" ? ocrError || "Check your connection, then try again." : "Loading on-device text recognition. Scanning will unlock when it is ready."}</span></div>
       {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
@@ -763,7 +777,7 @@ export default function EbtWeb() {
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" aria-invalid={Boolean(draft.serial) && !serialOk} />
         </div>
       </div>
-      <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
+      <button className="save" onClick={() => addNote()} disabled={!storageReady}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
       <a className="location-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
     </section>}
@@ -771,8 +785,9 @@ export default function EbtWeb() {
     {tab === "queue" && <section className="queue-panel">
       {editingNote && <form className="queue-editor" onSubmit={(event) => {
         event.preventDefault();
-        if (!denominations.includes(editingNote.denomination) || !isSerialValid(editingNote.serial) || !isCodeValid(editingNote.printerCode) || !editingNote.city.trim() || !editingNote.country.trim() || !editingNote.postalCode.trim() || editingNote.comment.length > 500 || /[\r\n\x00-\x1F]/.test(editingNote.comment)) {
-          setMessage("Check the serial checksum, printer code, denomination, city, country, postcode, and comment (up to 500 characters, one line).");
+        const errors = noteErrors(editingNote);
+        if (errors.length) {
+          setMessage(errors.join(" "));
           return;
         }
         setNotes((current) => current.map((note) => note.id === editingNote.id ? { ...editingNote, serial: clean(editingNote.serial), printerCode: clean(editingNote.printerCode) } : note));
@@ -783,12 +798,16 @@ export default function EbtWeb() {
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
       {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: <BanknoteFlag serial={note.serial} /> {note.serial}</span><span>Printer code: <BanknoteFlag serial={note.serial} printerCode={note.printerCode} /> {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
+      {uncertainIds.length > 0 && !isSubmitting && <p className="notice" role="alert">Submission outcome unknown. Check your EBT entries before retrying to avoid duplicates. <button type="button" onClick={() => {
+        try { window.localStorage.setItem("ebt-web-pending-submission", "[]"); setUncertainIds([]); }
+        catch { setStorageError("Browser storage is unavailable. Keep this page open and retry after freeing storage."); }
+      }}>I checked EBT; allow retry</button></p>}
       <div className="queue-submit">
-      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote)}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote) || uncertainIds.length > 0}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       </div>
     </section>}
 
-    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout}>Sign out</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
     {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>

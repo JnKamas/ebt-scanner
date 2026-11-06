@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
 import { EbtAccount, SESSION_COOKIE, ebtRequest, noStoreJson } from "../shared";
+import { mutationError, readJsonObject } from "../request-security";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const blocked = mutationError(request);
+  if (blocked) return blocked;
   let payload: { email?: unknown; password?: unknown };
   try {
-    payload = await request.json();
+    payload = await readJsonObject(request, 4096);
   } catch {
     return noStoreJson({ error: "Enter your EBT email address and password." }, { status: 400 });
   }

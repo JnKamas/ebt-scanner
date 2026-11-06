@@ -21,6 +21,7 @@ export async function ebtRequest(parameters: Record<string, string>) {
       "User-Agent": "EBT-Web/0.1 (Vercel; official EBT API client)"
     },
     body: body.toString(),
+    redirect: "error",
     signal: AbortSignal.timeout(15000),
     cache: "no-store"
   });

@@ -1,0 +1,55 @@
+# App regression and vulnerability review
+
+Reviewed 2026-11-06. The review covered the scanner, entry/edit/queue flows, authentication, API routes, local persistence, service worker, and dependency lockfile. All EBT operations in automated tests use fixtures; no real credentials or notes are submitted.
+
+Validation completed: **37 unit/API/security tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities**.
+
+## Review findings and regression coverage
+
+| Finding | Fix | Regression coverage |
+| --- | --- | --- |
+| Startup effects could erase a saved queue in development | Restore and validate browser data before enabling writes; protect preferences with the same startup guard | `storage.test.cjs`; development Strict Mode browser test |
+| Lost insertion responses were described as definite failures | Report an unknown outcome; persist the in-flight batch IDs before sending; block retry until the user checks EBT | `mutations.test.cjs`; reload and post-insertion storage-failure browser tests |
+| OCR could invent codes from numeric strings or truncate longer text | Require an entire six-character candidate and at least one observed letter; apply I/1/l correction only in positions fixed by the code structure | `printer-code-ocr.test.cjs`; live scanner browser tests |
+| Drafts and location edits disappeared on reload | Persist a whitelist of draft fields, including comments, alongside the queue | `storage.test.cjs`; draft reload browser test |
+| Entry, editing and server validation differed | Share checksum, printer format, required-field and length/control-character checks; keep postcode optional | `note-validation.test.cjs`; mutation and queue editor tests |
+| Missing frames or playback failures escaped the scan deadline | Start the deadline when the camera preview opens; retry missing frames; stop camera on timeout | Missing-frame, failed-playback and failed-encoding browser tests |
+| Offline shell lacked its production assets | Generate a versioned service worker after each build and precache the document and matching build assets; never cache API/RSC responses | `service-worker.test.cjs`; first-visit offline reload/manual-entry browser test |
+| JSON null or wrong-shaped bodies threw exceptions | Stream and bound request bodies, then require an object before accessing fields | `mutations.test.cjs` |
+
+Additional browser checks cover OS install guidance, early flags, invalid-field highlighting, no camera access from input/label clicks, minimum OCR confidence, frozen OCR boxes, printer-to-serial progression, automatic hit journeys, rejection editing, location lookup and account workflows.
+
+## Vulnerabilities addressed
+
+- **Dependency advisories:** npm reported critical advisories against the installed Next.js release. Updated the package minimum and lockfile to **16.4.5**. The final `npm audit --json` reported **zero known vulnerabilities**, including development dependencies. The upstream advisories list patched releases starting at 16.4.1: [SVG/image optimization](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [Server Actions denial of service](https://github.com/advisories/GHSA-p3m5-59mp-jv5r), and [`use cache` typed-array handling](https://github.com/advisories/GHSA-673q-mjm6-r5xr). Dependency exposure does not establish that every advisory was exploitable through this app's enabled features.
+- **Cross-origin mutations/login CSRF:** login, logout and insertion reject foreign origins, cross-site fetch metadata and non-JSON content types. This follows [OWASP's guidance on disallowing simple content types for JSON APIs](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html).
+- **Unbounded API bodies:** login is limited to 4 KiB and insertion to 64 KiB, checked against actual streamed bytes as well as any declared length.
+- **Credential forwarding on redirect:** the fixed HTTPS EBT transport rejects redirects instead of replaying credentials to a redirect destination.
+- **False sign-out and stale authentication responses:** failed logout retains the signed-in state with an explicit retry message; old session responses cannot override newer login/logout operations.
+- **Embedding and MIME handling:** responses include a frame-ancestor policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, a referrer policy, and restrictions on object/base elements.
+- **Private cache/storage handling:** authenticated API responses remain `no-store`; service-worker tests verify API requests bypass caches. Only whitelisted note/draft fields are persisted. Passwords and session IDs are excluded from saved notes and JSON login responses; the session cookie stays Secure, HttpOnly and SameSite=Lax.
+- **Text injection:** hit comments are rendered as React text. A browser test includes an image/onerror payload and verifies it creates neither an element nor script execution. Map URLs remain limited to official EBT HTTPS hosts.
+
+## Running the checks
+
+```sh
+npm ci
+npm test
+npx tsc --noEmit
+npm run build
+npx playwright install chromium
+npm run test:browser
+npm audit
+```
+
+Use `npm.cmd`/local `.cmd` binaries in PowerShell if script execution is restricted. Stop any development server before building. Browser tests start and stop their own production server on port 3001 and development server on port 3002. Generated `public/sw.js` is a build artifact; edit `scripts/service-worker.js` and build through `npm run build`. CI runs the same checks.
+
+## Limits and remaining operational work
+
+- These are automated regressions and a source/dependency review, not a guarantee that every possible vulnerability or device failure is covered.
+- Scanner tests use a fake webcam and the real SDK interface with a fixture worker. Physical banknote accuracy, laptop camera focus and real iPhone Safari behavior still require device testing.
+- Mutations use fixture responses. Official EBT availability, response loss and credential validity were not exercised with a live account.
+- The audit does not verify Vercel WAF/rate-limit settings or resistance to distributed abuse. The repository has bounded bodies and upstream timeouts, but no durable distributed login rate limiter.
+- Browser local storage remains shared across tabs; simultaneous independent edits in multiple tabs are not reconciled. Use one entry tab per device until conflict handling is added.
+- The CSP added here limits embedding/base/object behavior; it is not a nonce-based script policy.
+- Offline manual entry is covered after the first successful online service-worker installation. Offline OCR also requires its model/runtime assets to have been downloaded previously.

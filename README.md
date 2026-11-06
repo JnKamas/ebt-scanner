@@ -20,17 +20,17 @@ A mobile-first, installable web app for fast EuroBillTracker note entry. It is d
 
 Notes, saved locations, and comments remain in the browser's local storage until you submit them. Sign-in is proxied by server-side Next.js routes to the official EBT HTTPS API: the password is forwarded only for login and is never stored. The returned EBT session ID is held in a secure, HTTP-only cookie and is used for authenticated EBT requests, including suggestions, profile details, note journeys, and submissions.
 
-While signed in, the app also reads your previous locations/comments and your profile from EBT. These responses and the last submission receipt stay in page memory, with no server-side persistence. Sign-out clears the receipt. A rejected or unconfirmed submission stays in the local queue; successful notes are removed. Receipts include links to EBT note pages, and hits can load their journey on demand. Profile and journey maps depend on availability and EBT sharing settings. The API does not supply a complete note-history or latest-hit feed.
+While signed in, the app also reads your previous locations/comments and your profile from EBT. These responses and the last submission receipt stay in page memory, with no server-side persistence. Sign-out clears the receipt. A rejected or unconfirmed submission stays in the local queue; successful notes are removed. Submission results show the hit count without note links; hit journeys and available maps load automatically. Profile and journey maps depend on availability and EBT sharing settings. The API does not supply a complete note-history or latest-hit feed.
 
 **Use my location** requests browser location permission only when clicked, then sends rounded coordinates directly to [Photon](https://github.com/komoot/photon) to suggest a city, English country name, and postcode from OpenStreetMap. Coordinates are not sent through the app server or saved by the app. Check the suggested address, especially with approximate laptop positioning. Suggested postcodes have whitespace removed. Missing postcodes stay blank for manual entry, successful lookups silently fill the fields, and lookup failures retain the current fields. Photon’s public service permits reasonable project usage, has no availability guarantee, and may throttle heavy traffic; lookups happen only on explicit clicks, with at most one extra city lookup when an address lacks its city.
 
 ## Verification
 
-Run `node --test tests/ebt-api.test.cjs` for API contract/error handling checks and `.\node_modules\.bin\tsc.cmd --noEmit` for TypeScript. Use `npm.cmd run build` for the production build (the existing OCR configuration requires webpack), after stopping the development server.
+Run `npm.cmd test` for unit/API/security regressions and `.\node_modules\.bin\tsc.cmd --noEmit` for TypeScript. After stopping development servers, run `npm.cmd run build`; this builds with webpack and generates the versioned offline service worker. Direct `next build` does not generate the offline worker.
 
-With the production server on port 3001 and Playwright installed, run `node tests/ebt-browser.cjs`. Alternatively set `EBT_PLAYWRIGHT_MODULE` to an existing Playwright module path. The browser checks use fixture responses for every EBT request and never submit real notes or credentials.
+Install the browser once with `.\node_modules\.bin\playwright.cmd install chromium`, then run `npm.cmd run test:browser`. The suite starts its own production server on port 3001 and development server on port 3002. All EBT responses are fixtures, and no real notes or credentials are submitted. Tests include the original EBT and location browser workflows.
 
-Run `node --test tests/location.test.cjs` and `node tests/location-browser.cjs` for location parsing and browser workflow checks. Browser location tests use a simulated position and fixture geocoding responses.
+Run `npm.cmd audit` to check known dependency vulnerabilities. See [REVIEW.md](REVIEW.md) for the review findings, fixes, regression coverage, security checks and remaining limits. GitHub Actions runs these checks for pushes and pull requests.
 
 ## Run locally
 
