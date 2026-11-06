@@ -743,16 +743,16 @@ export default function EbtWeb() {
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
         {!denominationOk && <p className="denomination-hint">Choose a denomination to enable scanning.</p>}
-        <div className="field-row">
+        <div className={`field-row${draft.printerCode && !codeOk ? " field-invalid" : ""}`}>
           <div className="field-heading"><label htmlFor="printer-code">Printer code <BanknoteFlag serial={draft.serial} printerCode={draft.printerCode} /> <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
           <div className="printer-entry">
-            <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" />
+            <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" aria-invalid={Boolean(draft.printerCode) && !codeOk} />
             <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
           </div>
         </div>
-        <div className="field-row">
+        <div className={`field-row${draft.serial && !serialOk ? " field-invalid" : ""}`}>
           <div className="field-heading"><label htmlFor="serial-number">Serial number <BanknoteFlag serial={draft.serial} /> <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
-          <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" />
+          <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" aria-invalid={Boolean(draft.serial) && !serialOk} />
         </div>
       </div>
       <button className="save" onClick={() => addNote()}>Add note to queue <span>→</span></button>
