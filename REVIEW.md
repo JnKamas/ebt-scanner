@@ -2,7 +2,9 @@
 
 Reviewed 2026-11-06. The review covered the scanner, entry/edit/queue flows, authentication, API routes, local persistence, service worker, and dependency lockfile. All EBT operations in automated tests use fixtures; no real credentials or notes are submitted.
 
-Validation completed: **44 unit/API/security tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency lockfile unchanged by the deduplication pass).
+Validation completed: **45 unit/API/security/asset-integrity tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency versions unchanged by the deduplication and open-source preparation passes).
+
+Open-source release files now include the MIT [LICENSE](LICENSE), [contribution guide](CONTRIBUTING.md), [security policy](SECURITY.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [third-party notices](THIRD_PARTY_NOTICES.md). The active OCR models and runtime have recorded upstream sources and SHA-256 hashes; model weights also match the official model cards. An asset-integrity test prevents unrecorded replacements. Unused legacy runtime copies were removed. Repository visibility and GitHub private-reporting settings require separate verification in GitHub.
 
 ## Shared implementation for public release
 

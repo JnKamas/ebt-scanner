@@ -1,0 +1,4 @@
+# Preserve upstream OCR assets/notices byte-for-byte for provenance hashes on
+# every platform, including Windows checkouts with core.autocrlf enabled.
+public/ocr/** -text
+public/ocr/PROVENANCE.json text eol=lf

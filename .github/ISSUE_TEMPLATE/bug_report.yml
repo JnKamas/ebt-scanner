@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible application problem using non-sensitive data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include passwords, session cookies, real banknote serials or private locations. Follow SECURITY.md for vulnerabilities.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic data and explain whether the problem occurs locally or on a deployed version.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device, operating system, browser and app commit/version
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove credentials, cookies, real serial numbers and personal information first.

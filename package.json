@@ -2,6 +2,15 @@
   "name": "ebt-web",
   "version": "0.1.0",
   "private": true,
+  "description": "An independent, installable EuroBillTracker note-entry client with local drafts and browser-side OCR.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JnKamas/ebt-web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JnKamas/ebt-web/issues"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack && node scripts/build-offline.cjs",

@@ -1,0 +1,68 @@
+{
+  "reviewedOn": "2026-11-06",
+  "sources": [
+    {
+      "path": "public/ocr/LICENSE.PaddleOCR.txt",
+      "source": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/LICENSE",
+      "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+    },
+    {
+      "path": "public/ocr/LICENSE.onnxruntime.txt",
+      "source": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.24.3/LICENSE",
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    {
+      "path": "public/ocr/THIRD_PARTY_NOTICES.onnxruntime.txt",
+      "source": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.24.3/ThirdPartyNotices.txt",
+      "sha256": "0e07b95f3a8d6230037707c5c4a2b554d12c4cb67369669ac255635528ffcee2"
+    },
+    {
+      "path": "public/ocr/tiny_det.MODEL_CARD.md",
+      "source": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx/raw/2ba1506c0380b8f0b03dd142459aac66d4421f6c/README.md",
+      "sha256": "f48628931a5dc994ce5c67e32c94d71b4a7e96b8c5c1b00663284999c3c566bc"
+    },
+    {
+      "path": "public/ocr/tiny_rec.MODEL_CARD.md",
+      "source": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_rec_onnx/raw/2612ab37152ae0a677521bae4e1e3d4fb4cf7c30/README.md",
+      "sha256": "e83dd03e515a2d064eaba8ec82248f21dbf6a0813550bafe4c70ee2f6e8fdf2a"
+    },
+    {
+      "path": "public/ocr/PP-OCRv6_tiny_det_onnx_infer.tar",
+      "source": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_tiny_det_onnx_infer.tar",
+      "sha256": "ff6ab415b0a6e0c488550f2fb5d5046f1719848df220b2dc21b56402a65bc05d",
+      "modelFile": "PP-OCRv6_tiny_det_onnx_infer/inference.onnx",
+      "modelFileSha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+      "license": "Apache-2.0",
+      "licenseFile": "public/ocr/LICENSE.PaddleOCR.txt",
+      "modelCard": "public/ocr/tiny_det.MODEL_CARD.md"
+    },
+    {
+      "path": "public/ocr/PP-OCRv6_tiny_rec_onnx_infer.tar",
+      "source": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_tiny_rec_onnx_infer.tar",
+      "sha256": "1e13b22717b1edd89d4cde4fda272b6c17d5b505c97c2baea99da1a3a2d54b29",
+      "modelFile": "PP-OCRv6_tiny_rec_onnx_infer/inference.onnx",
+      "modelFileSha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+      "license": "Apache-2.0",
+      "licenseFile": "public/ocr/LICENSE.PaddleOCR.txt",
+      "modelCard": "public/ocr/tiny_rec.MODEL_CARD.md"
+    },
+    {
+      "path": "public/ocr/ort-1.24.3/ort-wasm-simd-threaded.mjs",
+      "source": "https://www.npmjs.com/package/onnxruntime-web/v/1.24.3",
+      "package": "onnxruntime-web@1.24.3",
+      "sha256": "5687566b1bc1c8cf628d76c2ddb16b2a3b81a7997273d4666564880495088e57",
+      "license": "MIT",
+      "licenseFile": "public/ocr/LICENSE.onnxruntime.txt",
+      "noticesFile": "public/ocr/THIRD_PARTY_NOTICES.onnxruntime.txt"
+    },
+    {
+      "path": "public/ocr/ort-1.24.3/ort-wasm-simd-threaded.wasm",
+      "source": "https://www.npmjs.com/package/onnxruntime-web/v/1.24.3",
+      "package": "onnxruntime-web@1.24.3",
+      "sha256": "be0e129949062ad50290ef94683fac8be5bb6156f709e030b7a5f1661a2f6c17",
+      "license": "MIT",
+      "licenseFile": "public/ocr/LICENSE.onnxruntime.txt",
+      "noticesFile": "public/ocr/THIRD_PARTY_NOTICES.onnxruntime.txt"
+    }
+  ]
+}

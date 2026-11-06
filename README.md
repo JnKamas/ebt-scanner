@@ -1,6 +1,6 @@
 # EBT Web
 
-A mobile-first, installable web app for fast EuroBillTracker note entry. It is designed for Safari on iPhone and deploys directly to Vercel.
+An independent, installable web app for fast EuroBillTracker note entry, with local drafts and browser-side OCR. Current testing prioritizes a laptop webcam; the responsive layout also supports mobile use. Deploy it to Vercel or run it locally.
 
 ## Included
 
@@ -35,11 +35,11 @@ Run `npm.cmd audit` to check known dependency vulnerabilities. See [REVIEW.md](R
 ## Run locally
 
 ```bash
-npm install
-npm run dev
+npm ci
+npm run dev -- --port 3001
 ```
 
-On this Windows machine, PowerShell blocks the `npm` script shim. Use `npm.cmd run dev` if that happens.
+Use Node.js 22. Open http://localhost:3001. No environment variables or EBT account are needed for development or automated tests. If PowerShell blocks the `npm` script shim, use `npm.cmd` instead. Sign-in is optional and is only needed for account features and submitting notes.
 
 ## Deploy on Vercel
 
@@ -60,3 +60,11 @@ Enable **Use this printer code for multiple notes** beside the printer-code inpu
 Banknote scanning is enabled only after a denomination is selected. Each queued note shows its denomination, serial number, printer code, country, and city.
 
 Banknote flags beside serial and printer codes describe the note rather than the location where it was found. First-series serial flags identify the commissioning central bank country; Europa serial flags identify the printing works country. Printer-code flags identify the printing country using the corresponding series. Unknown codes show no flag. The serial mappings follow the [ECB design tables](https://www.ecb.europa.eu/euro/banknotes/current/design/html/index.en.html); first-series printing works follow the [Bundesbank reference](https://www.bundesbank.de/dynamic/action/en/tasks/cash-management/frequently-asked-questions/frequently-asked-questions-euro-banknotes/642706/frequently-asked-questions-about-the-euro-banknotes?contentId=640556&firstLetter=W). Local SVG flags come from [flag-icons](https://github.com/lipis/flag-icons), with its MIT license in public/flags/LICENSE.txt.
+
+## License and community
+
+Original EBT Web code is licensed under [MIT](LICENSE). Bundled OCR models, runtime files, flags and npm dependencies retain their upstream licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). `private: true` in package.json prevents accidental npm publication and does not restrict making this GitHub repository public.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for participation expectations, and [SECURITY.md](SECURITY.md) to report vulnerabilities privately. EBT Web is an independent client and is not the official EuroBillTracker application.
+
+Tests and dependency audits do not establish production security. Before broad public use, verify private vulnerability reporting, production rate limiting and real-camera/device behavior described in [REVIEW.md](REVIEW.md).
