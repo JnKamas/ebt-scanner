@@ -5,6 +5,7 @@ import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-
 import { Receipt, SubmissionResult } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
+import { printerCodeFromOcr } from "../lib/printer-code-ocr";
 
 type Note = {
   id: string;
@@ -333,7 +334,9 @@ export default function EbtWeb() {
     };
     const matcher = target === "printerCode" ? /[A-Z]\d{3}[A-Z][1-9]/g : /(?:[A-Z]\d{11}|[A-Z]{2}\d{10})/g;
     const isValid = target === "printerCode" ? isCodeValid : isSerialValid;
-    const validFrom = (text: string) => (clean(text).match(matcher) ?? []).find(isValid);
+    const validFrom = (text: string) => target === "printerCode"
+      ? printerCodeFromOcr(text)
+      : (clean(text).match(matcher) ?? []).find(isValid);
 
     for (const item of readable) {
       const valid = validFrom(item.text);
