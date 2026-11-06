@@ -614,9 +614,17 @@ export default function EbtWeb() {
 
   function addNote(keepLocationAndComment = false) {
     const currentDraft = draftRef.current;
-    const currentReady = denominations.includes(currentDraft.denomination) && isSerialValid(currentDraft.serial) && isCodeValid(currentDraft.printerCode) && Boolean(currentDraft.city.trim()) && Boolean(currentDraft.country.trim());
-    if (!currentReady) {
-      setMessage("Complete a valid-looking serial, printer code, country, and city first.");
+    const errors: string[] = [];
+    if (!denominations.includes(currentDraft.denomination)) errors.push("Denomination: choose a euro banknote value.");
+    if (!clean(currentDraft.printerCode)) errors.push("Printer code: enter or scan the code.");
+    else if (!isCodeValid(currentDraft.printerCode)) errors.push("Printer code: use 1 letter, 3 digits, 1 letter, and a final digit from 1 to 9 (for example, R001A1).");
+    if (!clean(currentDraft.serial)) errors.push("Serial number: enter or scan the number.");
+    else if (!/^(?:[A-Z]\d{11}|[A-Z]{2}\d{10})$/.test(clean(currentDraft.serial))) errors.push("Serial number: use 1 letter and 11 digits, or 2 letters and 10 digits.");
+    else if (!isSerialValid(currentDraft.serial)) errors.push("Serial number: checksum failed. Check each letter and digit against the banknote.");
+    if (!currentDraft.country.trim()) errors.push("Country: enter where you found the note.");
+    if (!currentDraft.city.trim()) errors.push("City: enter where you found the note.");
+    if (errors.length) {
+      setMessage(errors.join(" "));
       return false;
     }
     const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
