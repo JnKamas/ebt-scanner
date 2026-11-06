@@ -5,7 +5,7 @@ export function mutationError(request: NextRequest) {
   const origin = request.headers.get("origin");
   const site = request.headers.get("sec-fetch-site");
   if (site === "cross-site" || (origin && origin !== request.nextUrl.origin)) {
-    return noStoreJson({ error: "This request must come from the EBT Web app." }, { status: 403 });
+    return noStoreJson({ error: "This request must come from the EBT Scanner app." }, { status: 403 });
   }
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
     return noStoreJson({ error: "Send an application/json request." }, { status: 415 });

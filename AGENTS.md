@@ -1,4 +1,4 @@
-# EBT Web project instructions
+# EBT Scanner project instructions
 
 ## Current priority
 

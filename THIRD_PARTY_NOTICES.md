@@ -1,6 +1,6 @@
 # Third-party software and assets
 
-The root [MIT license](LICENSE) covers EBT Web's original code and documentation. It does not replace the licenses of dependencies, model weights, runtimes or flag artwork. Product names and marks belong to their respective owners; no affiliation or endorsement is implied.
+The root [MIT license](LICENSE) covers EBT Scanner's original code and documentation. It does not replace the licenses of dependencies, model weights, runtimes or flag artwork. Product names and marks belong to their respective owners; no affiliation or endorsement is implied.
 
 ## Vendored OCR assets
 
@@ -10,9 +10,9 @@ The root [MIT license](LICENSE) covers EBT Web's original code and documentation
 | PP-OCRv6 tiny ONNX detection and recognition models | `public/ocr/PP-OCRv6_tiny_det_onnx_infer.tar`, `public/ocr/PP-OCRv6_tiny_rec_onnx_infer.tar` | Apache-2.0 as declared by PaddlePaddle's official model cards. [Detection card](public/ocr/tiny_det.MODEL_CARD.md), [recognition card](public/ocr/tiny_rec.MODEL_CARD.md), [license copy](public/ocr/LICENSE.PaddleOCR.txt). |
 | ONNX Runtime Web | `public/ocr/ort-1.24.3/`, npm `onnxruntime-web` 1.24.3 | MIT; Copyright (c) Microsoft Corporation. [License](public/ocr/LICENSE.onnxruntime.txt), [upstream third-party notices](public/ocr/THIRD_PARTY_NOTICES.onnxruntime.txt), [versioned source](https://github.com/microsoft/onnxruntime/tree/v1.24.3). |
 
-The model archives are redistributed without modification and have been compared byte-for-byte by SHA-256 with the official PaddleOCR.js model URLs. The active runtime `.mjs` and `.wasm` files match the installed 1.24.3 package. EBT Web's runtime configuration is separate from these upstream files. [PROVENANCE.json](public/ocr/PROVENANCE.json) records sources, hashes and the review date; model cards and upstream license text are preserved as snapshots.
+The model archives are redistributed without modification and have been compared byte-for-byte by SHA-256 with the official PaddleOCR.js model URLs. The active runtime `.mjs` and `.wasm` files match the installed 1.24.3 package. EBT Scanner's runtime configuration is separate from these upstream files. [PROVENANCE.json](public/ocr/PROVENANCE.json) records sources, hashes and the review date; model cards and upstream license text are preserved as snapshots.
 
-The full ONNX Runtime third-party notice file is reproduced unchanged as supplied by the upstream repository. It describes upstream components, including components that may not be enabled in this WebAssembly build. It is retained for attribution rather than a claim that every listed component is used by EBT Web.
+The full ONNX Runtime third-party notice file is reproduced unchanged as supplied by the upstream repository. It describes upstream components, including components that may not be enabled in this WebAssembly build. It is retained for attribution rather than a claim that every listed component is used by EBT Scanner.
 
 ## Flag artwork
 
@@ -24,6 +24,6 @@ Next.js, React, ONNX Runtime Web, PaddleOCR.js and their transitive packages ret
 
 ## External services and reference data
 
-- [EuroBillTracker](https://www.eurobilltracker.com/) provides the external account and note API. EBT Web is an independent client, not the official EuroBillTracker application. This repository's MIT license does not grant rights to EuroBillTracker data, accounts or trademarks.
+- [EuroBillTracker](https://www.eurobilltracker.com/) provides the external account and note API. EBT Scanner is an independent client, not the official EuroBillTracker application. This repository's MIT license does not grant rights to EuroBillTracker data, accounts or trademarks.
 - Location lookup uses [Photon](https://github.com/komoot/photon) and OpenStreetMap-derived data. Retain the app's [OpenStreetMap attribution](https://www.openstreetmap.org/copyright) when displaying or reusing that data. No Photon server code is vendored here.
 - Euro banknote code mappings are based on the linked ECB and Bundesbank references in the README. No banknote photographs are bundled.

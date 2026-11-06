@@ -10,7 +10,7 @@ export async function ebtRequest(parameters: Record<string, string>) {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "EBT-Web/0.1 (Vercel; official EBT API client)"
+      "User-Agent": "EBT-Scanner/0.1 (Vercel; independent EBT API client)"
     },
     body: body.toString(),
     redirect: "error",

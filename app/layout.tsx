@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EBT Web",
+  title: "EBT Scanner",
   description: "Fast, private EuroBillTracker note entry.",
-  applicationName: "EBT Web",
+  applicationName: "EBT Scanner",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "EBT Web" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "EBT Scanner" },
   icons: { icon: "/icon.svg", apple: "/icon.svg" }
 };
 

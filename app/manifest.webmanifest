@@ -1,6 +1,6 @@
 {
-  "name": "EBT Web",
-  "short_name": "EBT Web",
+  "name": "EBT Scanner",
+  "short_name": "EBT Scanner",
   "description": "Fast, private EuroBillTracker note entry.",
   "start_url": "/",
   "display": "standalone",

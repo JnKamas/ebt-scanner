@@ -17,7 +17,7 @@ type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 type OcrStatus = "loading" | "ready" | "error";
 
-export default function EbtWeb() {
+export default function EbtScanner() {
   const [tab, setTab] = useState<Tab>("entry");
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
   const [draft, setDraft] = useState(blankDraft);
@@ -689,7 +689,7 @@ export default function EbtWeb() {
 
   return <main className="shell">
     <header className="topbar">
-      <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Web</b></span></div>
+      <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Scanner</b></span></div>
     </header>
 
     {storageError && <p className="notice" role="alert">{storageError}</p>}

@@ -1,5 +1,5 @@
 {
-  "name": "ebt-web",
+  "name": "ebt-scanner",
   "version": "0.1.0",
   "private": true,
   "description": "An independent, installable EuroBillTracker note-entry client with local drafts and browser-side OCR.",

@@ -10,6 +10,13 @@ for (const [platform, userAgent, expected] of [
     test('installation guidance matches the OS', async ({ page }) => {
       await setup(page);
       await page.goto('/');
+      await expect(page).toHaveTitle('EBT Scanner');
+      await expect(page.locator('.brand')).toContainText('EBT Scanner');
+      if (platform === 'Windows') {
+        const manifest = await (await page.request.get('/manifest.webmanifest')).json();
+        expect(manifest.name).toBe('EBT Scanner');
+        expect(manifest.short_name).toBe('EBT Scanner');
+      }
       await page.getByRole('button', { name: 'Settings' }).click();
       const guidance = page.locator('.setting').filter({ hasText: /Install on/ });
       if (expected) await expect(guidance).toContainText(expected);

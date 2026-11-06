@@ -1,4 +1,4 @@
-# Contributing to EBT Web
+# Contributing to EBT Scanner
 
 Bug reports, documentation improvements and focused pull requests are welcome. For security concerns, follow [SECURITY.md](SECURITY.md) instead of posting details in a public issue.
 

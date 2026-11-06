@@ -21,7 +21,7 @@ self.addEventListener("fetch", (event) => {
         event.waitUntil(caches.open(CACHE).then((cache) => cache.put("/", copy)));
       }
       return response;
-    }).catch(async () => (await caches.match("/")) || new Response("Open EBT Web online once before using it offline.", { status: 503 })));
+    }).catch(async () => (await caches.match("/")) || new Response("Open EBT Scanner online once before using it offline.", { status: 503 })));
     return;
   }
   if (url.pathname === "/") return;

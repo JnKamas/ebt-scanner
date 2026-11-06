@@ -1,4 +1,4 @@
-# EBT Web
+# EBT Scanner
 
 An independent, installable web app for fast EuroBillTracker note entry, with local drafts and browser-side OCR. Current testing prioritizes a laptop webcam; the responsive layout also supports mobile use. Deploy it to Vercel or run it locally.
 
@@ -65,8 +65,8 @@ Banknote flags beside serial and printer codes describe the note rather than the
 
 ## License and community
 
-Original EBT Web code is licensed under [MIT](LICENSE). Bundled OCR models, runtime files, flags and npm dependencies retain their upstream licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). `private: true` in package.json prevents accidental npm publication and does not restrict making this GitHub repository public.
+Original EBT Scanner code is licensed under [MIT](LICENSE). Bundled OCR models, runtime files, flags and npm dependencies retain their upstream licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). `private: true` in package.json prevents accidental npm publication and does not restrict making this GitHub repository public.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for participation expectations, and [SECURITY.md](SECURITY.md) to report vulnerabilities privately. EBT Web is an independent client and is not the official EuroBillTracker application.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for participation expectations, and [SECURITY.md](SECURITY.md) to report vulnerabilities privately. EBT Scanner is an independent client and is not the official EuroBillTracker application.
 
 Tests and dependency audits do not establish production security. Before broad public use, verify private vulnerability reporting, production rate limiting and real-camera/device behavior described in [REVIEW.md](REVIEW.md).
