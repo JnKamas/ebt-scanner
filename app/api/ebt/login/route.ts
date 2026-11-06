@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { EbtAccount, SESSION_COOKIE, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, SESSION_COOKIE_OPTIONS, ebtRequest, noStoreJson } from "../shared";
+import { EbtAccount, publicAccount } from "../../../lib/ebt";
 import { mutationError, readJsonObject } from "../request-security";
 
 export const runtime = "nodejs";
@@ -27,12 +28,9 @@ export async function POST(request: NextRequest) {
     }
 
     const account = result as EbtAccount & { sessionid: string };
-    const response = noStoreJson({ account: { username: account.username, my_city: account.my_city, my_country: account.my_country, my_zip: account.my_zip, totalbills: account.totalbills, totalhits: account.totalhits } });
+    const response = noStoreJson({ account: publicAccount(account) });
     response.cookies.set(SESSION_COOKIE, account.sessionid, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",
+      ...SESSION_COOKIE_OPTIONS,
       maxAge: 60 * 60 * 24 * 14
     });
     return response;

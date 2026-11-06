@@ -1,11 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const ts = require('typescript');
-const moduleSource = ts.transpileModule(fs.readFileSync('app/lib/location.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const locationModule = { exports: {} };
-new Function('exports', moduleSource)(locationModule.exports);
-const { addressFromPhoton, locateAddress, locationPermissionMessage } = locationModule.exports;
+const { addressFromPhoton, locateAddress, locationPermissionMessage } = require('./load-ts.cjs')('app/lib/location.ts');
 const feature = (properties) => ({ features: [{ properties }] });
 
 test('English countries, town names and postcodes are derived from address data', () => {

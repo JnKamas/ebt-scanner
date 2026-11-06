@@ -46,3 +46,12 @@ export function submissionMessage(result: SubmissionResult | null): string {
   if ((status & 128) && result?.alreadyDenom) reasons.push(`Previous denomination: €${result.alreadyDenom}`);
   return `${reasons.join(". ")}.`;
 }
+export type EbtAccount = {
+  username: string; my_city: string; my_country: string; my_zip: string;
+  totalbills: number; totalhits: number;
+};
+
+// Explicitly whitelist public account fields; upstream session IDs stay server-side.
+export function publicAccount(account: EbtAccount): EbtAccount {
+  return { username: account.username, my_city: account.my_city, my_country: account.my_country, my_zip: account.my_zip, totalbills: account.totalbills, totalhits: account.totalhits };
+}

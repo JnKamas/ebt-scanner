@@ -1,17 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const ts = require('typescript');
-
-function load(file, dependencies = {}) {
-  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} };
-  new Function('require', 'module', 'exports', source)((name) => {
-    if (name in dependencies) return dependencies[name];
-    throw new Error(`Unexpected dependency: ${name}`);
-  }, module, module.exports);
-  return module.exports;
-}
+const load = require('./load-ts.cjs');
 const lib = load('app/lib/ebt.ts');
 function route(name, respond) {
   const calls = [];

@@ -2,7 +2,13 @@
 
 Reviewed 2026-11-06. The review covered the scanner, entry/edit/queue flows, authentication, API routes, local persistence, service worker, and dependency lockfile. All EBT operations in automated tests use fixtures; no real credentials or notes are submitted.
 
-Validation completed: **37 unit/API/security tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities**.
+Validation completed: **44 unit/API/security tests**, **22 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency lockfile unchanged by the deduplication pass).
+
+## Shared implementation for public release
+
+Account types and the public response whitelist are shared between login, session checks and the UI. Login and cookie deletion share the same cookie security settings. Manual entry, OCR and server insertion share code-format rules. The scanner has one matching/box-joining implementation, and the displayed confidence requirement uses its actual threshold. Queue selection, the batch limit and location comparisons are shared by submission and the displayed count. Pending-submission persistence uses one storage helper. Unit/API tests use one TypeScript loader.
+
+Additional regressions verify joined OCR text, spatial/confidence rejection, complete serial matching, queue order and location grouping, account response filtering, cookie deletion protections and pending-marker persistence. Public-launch limits, including production rate limiting and real-device acceptance, remain listed below.
 
 ## Review findings and regression coverage
 

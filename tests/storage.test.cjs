@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { readLocalState, writeLocalState } = require('./load-ts.cjs')('app/lib/local-state.ts');
+const { readLocalState, writeLocalState, writePendingSubmission } = require('./load-ts.cjs')('app/lib/local-state.ts');
 const draft = { serial: 'X000', printerCode: 'R', denomination: '20', country: 'Slovakia', city: 'Bratislava', postalCode: '', comment: 'shop' };
 const note = { ...draft, id: 'one', createdAt: '2026-11-06' };
 function storage() { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; }
@@ -27,12 +27,15 @@ test('bad JSON and wrong shapes are recovered without crashing', () => {
 test('an interrupted submission remains marked as uncertain after reload', () => {
   const store = storage();
   writeLocalState(store, [note], draft);
-  store.setItem('ebt-web-pending-submission', '["one"]');
+  assert.equal(writePendingSubmission(store, ['one']), '');
   assert.deepEqual(readLocalState(store).pendingIds, ['one']);
+  assert.equal(writePendingSubmission(store, []), '');
+  assert.deepEqual(readLocalState(store).pendingIds, []);
 });
 
 test('storage exceptions are surfaced instead of silently claiming a saved queue', () => {
   const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('full'); } };
   assert(readLocalState(blocked).error);
   assert.match(writeLocalState(blocked, [note], draft), /could not be saved/i);
+  assert.match(writePendingSubmission(blocked, ['one']), /cannot save submission status/i);
 });

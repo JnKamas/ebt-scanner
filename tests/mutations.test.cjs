@@ -9,6 +9,7 @@ function request(body, headers = {}) {
 function api(name, respond = () => ({ note0: { status: 0, billId: 42 } })) {
   const calls = [], cookies = [];
   const shared = {
+    ...load('app/api/ebt/shared.ts'),
     SESSION_COOKIE: 'ebt-web-session',
     ebtRequest: async p => { calls.push(p); return respond(p); },
     noStoreJson: (body, init = {}) => ({ body, status: init.status || 200, cookies: { set: (...args) => cookies.push(args) } }),
@@ -92,4 +93,23 @@ test('the EBT transport never follows redirects and private JSON is not cacheabl
     assert.equal(called.options.cache, 'no-store');
     assert.equal(shared.noStoreJson({ account: 'private' }).headers.get('cache-control'), 'no-store');
   } finally { global.fetch = original; }
+});
+
+test('login and session responses apply the same public account whitelist', async () => {
+  const account = { sessionid: 'secret-session', password: 'secret-password', username: 'Tracker', my_city: 'Wien', my_country: 'Austria', my_zip: '1010', totalbills: 42, totalhits: 1 };
+  const login = await api('login', () => account).POST(request({ email: 'fixture@example.test', password: 'fixture' }));
+  const session = await api('session', () => account).GET(request({}));
+  for (const response of [login, session]) {
+    assert.equal(response.status, 200);
+    assert.deepEqual(Object.keys(response.body.account).sort(), ['my_city', 'my_country', 'my_zip', 'totalbills', 'totalhits', 'username']);
+    assert.equal(response.body.account.username, 'Tracker');
+    assert(!JSON.stringify(response.body).includes('secret-'));
+  }
+  assert.deepEqual(login.body, session.body);
+});
+
+test('cookie deletion retains the same security attributes as login', () => {
+  const shared = load('app/api/ebt/shared.ts');
+  const cookie = shared.clearSession(shared.noStoreJson({ ok: true })).headers.get('set-cookie');
+  for (const attribute of ['HttpOnly', 'Secure', 'SameSite=lax', 'Path=/', 'Max-Age=0']) assert(cookie.toLowerCase().includes(attribute.toLowerCase()));
 });

@@ -2,15 +2,7 @@ import { NextResponse } from "next/server";
 
 export const EBT_API_URL = "https://api.eurobilltracker.com/";
 export const SESSION_COOKIE = "ebt-web-session";
-
-export type EbtAccount = {
-  username: string;
-  my_city: string;
-  my_country: string;
-  my_zip: string;
-  totalbills: number;
-  totalhits: number;
-};
+export const SESSION_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", secure: true, path: "/" } as const;
 
 export async function ebtRequest(parameters: Record<string, string>) {
   const body = new URLSearchParams(parameters);
@@ -37,6 +29,6 @@ export function noStoreJson(data: unknown, init?: ResponseInit) {
 }
 
 export function clearSession(response: NextResponse) {
-  response.cookies.set(SESSION_COOKIE, "", { httpOnly: true, sameSite: "lax", secure: true, maxAge: 0, path: "/" });
+  response.cookies.set(SESSION_COOKIE, "", { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
   return response;
 }

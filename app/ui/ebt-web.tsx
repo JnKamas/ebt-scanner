@@ -2,34 +2,21 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
-import { Receipt, SubmissionResult } from "../lib/ebt";
+import { EbtAccount, Receipt, SubmissionResult } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
-import { printerCodeFromOcr } from "../lib/printer-code-ocr";
+import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
+import { submissionBatch } from "../lib/note-queue";
 import { blankDraft, clean, denominations, isCodeValid, isSerialValid, noteErrors, Note } from "../lib/note-validation";
-import { readLocalState, writeLocalState } from "../lib/local-state";
-
-type EbtAccount = {
-  username: string;
-  my_city: string;
-  my_country: string;
-  my_zip: string;
-  totalbills: number;
-  totalhits: number;
-};
+import { readLocalState, writeLocalState, writePendingSubmission } from "../lib/local-state";
 
 type Tab = "entry" | "queue" | "profile" | "settings";
-type ScanTarget = "printerCode" | "serial";
 type CameraPreference = { deviceId: string };
 const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "" }, serial: { deviceId: "" } });
-type ScanBox = { x0: number; y0: number; x1: number; y1: number };
-type ScanMatch = { value: string; boxes: ScanBox[]; confidences: number[] };
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
-type PaddleItem = { text: string; score: number; poly: Array<[number, number]> };
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 type OcrStatus = "loading" | "ready" | "error";
 
-const minimumOcrConfidence = 0.7;
 export default function EbtWeb() {
   const [tab, setTab] = useState<Tab>("entry");
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
@@ -239,6 +226,7 @@ export default function EbtWeb() {
   const serialOk = isSerialValid(clean(draft.serial));
   const codeOk = isCodeValid(clean(draft.printerCode));
   const denominationOk = denominations.includes(draft.denomination);
+  const batch = useMemo(() => submissionBatch(notes), [notes]);
   const total = useMemo(() => notes.reduce((sum, note) => sum + Number(note.denomination), 0), [notes]);
   const notesPerHit = account && Number(account.totalhits) > 0 ? (Number(account.totalbills) / Number(account.totalhits)).toFixed(1) : "—";
 
@@ -322,51 +310,6 @@ export default function EbtWeb() {
     if (resultCountdownRef.current) window.clearInterval(resultCountdownRef.current);
     resultCountdownRef.current = null;
     setResultSecondsRemaining(0);
-  }
-
-  function findValidCode(items: PaddleItem[], target: ScanTarget): ScanMatch | null {
-    // Apply the fixed 70% minimum to every OCR item, including joined groups.
-    const readable = items.filter((item) => item.score >= minimumOcrConfidence && item.poly.length > 0);
-    const boxFor = (item: PaddleItem): ScanBox => {
-      const x = item.poly.map(([pointX]) => pointX);
-      const y = item.poly.map(([, pointY]) => pointY);
-      return { x0: Math.min(...x), y0: Math.min(...y), x1: Math.max(...x), y1: Math.max(...y) };
-    };
-    const validFrom = (text: string) => target === "printerCode"
-      ? printerCodeFromOcr(text)
-      : (isSerialValid(clean(text)) ? clean(text) : undefined);
-
-    for (const item of readable) {
-      const valid = validFrom(item.text);
-      if (valid) return { value: valid, boxes: [boxFor(item)], confidences: [item.score] };
-    }
-
-    // Printed codes are commonly detected as separate character groups. Join nearby
-    // groups on the same baseline, but still require the complete EBT validation.
-    const ordered = [...readable].sort((a, b) => {
-      const aBox = boxFor(a);
-      const bBox = boxFor(b);
-      const aMidY = (aBox.y0 + aBox.y1) / 2;
-      const bMidY = (bBox.y0 + bBox.y1) / 2;
-      return Math.abs(aMidY - bMidY) > Math.max(aBox.y1 - aBox.y0, bBox.y1 - bBox.y0) ? aMidY - bMidY : aBox.x0 - bBox.x0;
-    });
-    for (let start = 0; start < ordered.length; start += 1) {
-      const group = [ordered[start]];
-      const firstBox = boxFor(ordered[start]);
-      for (let end = start + 2; end <= Math.min(start + 4, ordered.length); end += 1) {
-        const previous = group[group.length - 1];
-        const previousBox = boxFor(previous);
-        const next = ordered[end - 1];
-        const nextBox = boxFor(next);
-        const sameLine = Math.abs(((previousBox.y0 + previousBox.y1) - (nextBox.y0 + nextBox.y1)) / 2) <= Math.max(previousBox.y1 - previousBox.y0, nextBox.y1 - nextBox.y0) * 1.5;
-        const closeEnough = nextBox.x0 - previousBox.x1 <= Math.max(firstBox.x1 - firstBox.x0, 80) * 1.5;
-        if (!sameLine || !closeEnough) break;
-        group.push(next);
-        const valid = validFrom(group.map((item) => item.text).join(""));
-        if (valid) return { value: valid, boxes: group.map(boxFor), confidences: group.map((item) => item.score) };
-      }
-    }
-    return null;
   }
 
   async function getOcr() {
@@ -672,14 +615,18 @@ export default function EbtWeb() {
     } finally { setIsLoggingOut(false); }
   }
 
+  function savePendingSubmission(ids: string[]) {
+    let error: string;
+    try { error = writePendingSubmission(window.localStorage, ids); }
+    catch { error = "Browser storage is unavailable. Keep this page open and retry after freeing storage."; }
+    if (error) { setStorageError(error); return false; }
+    setUncertainIds(ids);
+    return true;
+  }
+
   async function submitQueue() {
     if (!account || isSubmitting || editingNote || notes.length === 0 || uncertainIds.length > 0) return;
-    const first = notes[0];
-    const batch = notes.filter((note) => note.country === first.country && note.city === first.city && note.postalCode === first.postalCode).slice(0, 25);
-    const pendingIds = batch.map((note) => note.id);
-    try { window.localStorage.setItem("ebt-web-pending-submission", JSON.stringify(pendingIds)); }
-    catch { setMessage("Cannot save submission status in this browser. Free browser storage before submitting."); return; }
-    setUncertainIds(pendingIds);
+    if (!savePendingSubmission(batch.map((note) => note.id))) return;
     let outcomeUnknown = true;
     setIsSubmitting(true);
     setMessage(`Sending ${batch.length} note${batch.length === 1 ? "" : "s"} to EuroBillTracker…`);
@@ -712,10 +659,7 @@ export default function EbtWeb() {
       // A dropped browser response can follow a successful upstream insertion.
       setMessage(outcomeUnknown ? "Submission outcome unknown. EBT may have received the notes. Check EBT before retrying; notes remain queued." : error instanceof Error ? error.message : "Could not submit the notes.");
     } finally {
-      if (!outcomeUnknown) {
-        try { window.localStorage.setItem("ebt-web-pending-submission", "[]"); setUncertainIds([]); }
-        catch { setStorageError("Could not clear the saved submission status. Check EBT before retrying."); }
-      }
+      if (!outcomeUnknown) savePendingSubmission([]);
       setIsSubmitting(false);
     }
   }
@@ -798,18 +742,15 @@ export default function EbtWeb() {
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
       {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: <BanknoteFlag serial={note.serial} /> {note.serial}</span><span>Printer code: <BanknoteFlag serial={note.serial} printerCode={note.printerCode} /> {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
-      {uncertainIds.length > 0 && !isSubmitting && <p className="notice" role="alert">Submission outcome unknown. Check your EBT entries before retrying to avoid duplicates. <button type="button" onClick={() => {
-        try { window.localStorage.setItem("ebt-web-pending-submission", "[]"); setUncertainIds([]); }
-        catch { setStorageError("Browser storage is unavailable. Keep this page open and retry after freeing storage."); }
-      }}>I checked EBT; allow retry</button></p>}
+      {uncertainIds.length > 0 && !isSubmitting && <p className="notice" role="alert">Submission outcome unknown. Check your EBT entries before retrying to avoid duplicates. <button type="button" onClick={() => savePendingSubmission([])}>I checked EBT; allow retry</button></p>}
       <div className="queue-submit">
-      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote) || uncertainIds.length > 0}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${Math.min(25, notes.filter((note) => note.country === notes[0].country && note.city === notes[0].city && note.postalCode === notes[0].postalCode).length)})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
+      {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote) || uncertainIds.length > 0}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${batch.length})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       </div>
     </section>}
 
     {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. To submit notes, EBT Web sends your password directly to EuroBillTracker over HTTPS and never saves it.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. Sign-in sends your password over HTTPS through this app’s server to EuroBillTracker. The app never saves your password.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>
         <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
         <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
@@ -823,7 +764,7 @@ export default function EbtWeb() {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
-        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least 70% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>

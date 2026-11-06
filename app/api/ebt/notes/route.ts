@@ -1,20 +1,18 @@
 import { NextRequest } from "next/server";
 import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
 import { mutationError, readJsonObject } from "../request-security";
-import { isDraft, noteErrors } from "../../../lib/note-validation";
+import { Draft, isDraft, isSerialFormatValid, noteErrors, printerCodePattern } from "../../../lib/note-validation";
+import { maxSubmissionBatch, sameLocation } from "../../../lib/note-queue";
 
 export const runtime = "nodejs";
 
-type SubmittedNote = { id: string; serial: string; printerCode: string; denomination: string; country: string; city: string; postalCode: string; comment: string };
+type SubmittedNote = Draft & { id: string };
 
 function isNote(value: unknown): value is SubmittedNote {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  if (!["id", "serial", "printerCode", "denomination", "country", "city", "postalCode", "comment"].every((key) => typeof candidate[key] === "string")) return false;
-  const note = candidate as SubmittedNote;
-  return isDraft(note) && noteErrors(note).length === 0 && note.id.length > 0 && note.id.length <= 100
-    && /^[A-Z]\d{11}$|^[A-Z]{2}\d{10}$/.test(note.serial)
-    && /^[A-Z]\d{3}[A-Z][1-9]$/.test(note.printerCode);
+  if (!isDraft(value)) return false;
+  const note = value as SubmittedNote;
+  return typeof note.id === "string" && note.id.length > 0 && note.id.length <= 100 && noteErrors(note).length === 0
+    && isSerialFormatValid(note.serial) && printerCodePattern.test(note.printerCode);
 }
 
 export async function POST(request: NextRequest) {
@@ -29,14 +27,14 @@ export async function POST(request: NextRequest) {
   } catch {
     return noStoreJson({ error: "The note queue could not be read." }, { status: 400 });
   }
-  if (!Array.isArray(payload.notes) || payload.notes.length === 0 || payload.notes.length > 25 || !payload.notes.every(isNote)) {
-    return noStoreJson({ error: "Each submitted note needs valid EBT fields. Submit no more than 25 at once." }, { status: 400 });
+  if (!Array.isArray(payload.notes) || payload.notes.length === 0 || payload.notes.length > maxSubmissionBatch || !payload.notes.every(isNote)) {
+    return noStoreJson({ error: `Each submitted note needs valid EBT fields. Submit no more than ${maxSubmissionBatch} at once.` }, { status: 400 });
   }
 
   const notes = payload.notes;
   if (new Set(notes.map((note) => note.id)).size !== notes.length) return noStoreJson({ error: "Each queued note needs a unique ID." }, { status: 400 });
   const location = notes[0];
-  if (!notes.every((note) => note.city === location.city && note.country === location.country && note.postalCode === location.postalCode)) {
+  if (!notes.every((note) => sameLocation(note, location))) {
     return noStoreJson({ error: "EBT accepts one location per batch. Submit notes from each location separately." }, { status: 400 });
   }
 

@@ -1,11 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const ts = require('typescript');
-const source = ts.transpileModule(fs.readFileSync('app/lib/printer-code-ocr.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const compiled = { exports: {} };
-new Function('exports', source)(compiled.exports);
-const { printerCodeFromOcr } = compiled.exports;
+const { printerCodeFromOcr } = require('./load-ts.cjs')('app/lib/printer-code-ocr.ts');
 
 test('preserves correctly recognized printer codes, including I and L', () => {
   for (const code of ['R001I1', 'I123A1', 'L001L1', 'R001A1']) assert.equal(printerCodeFromOcr(code), code);

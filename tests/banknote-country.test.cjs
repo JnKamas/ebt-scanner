@@ -1,11 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const ts = require('typescript');
-const source = ts.transpileModule(fs.readFileSync('app/lib/banknote-country.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const compiled = { exports: {} };
-new Function('exports', source)(compiled.exports);
-const { banknoteCountry } = compiled.exports;
+const { banknoteCountry } = require('./load-ts.cjs')('app/lib/banknote-country.ts');
 
 test('serial flags distinguish commissioning countries from Europa printing countries', () => {
   assert.equal(banknoteCountry('E00000000000').code, 'sk');
