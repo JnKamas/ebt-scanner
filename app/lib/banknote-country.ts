@@ -22,14 +22,26 @@ const europaPrinters: Record<string, string> = {
 
 export function banknoteCountry(serial: string, printerCode?: string): (Country & { description: string }) | null {
   const value = serial.toUpperCase().replace(/\s+/g, "");
-  const firstSeries = /^[A-Z]\d{11}$/.test(value);
-  const europa = /^[A-Z]{2}\d{10}$/.test(value);
-  if (!firstSeries && !europa) return null;
-  if (printerCode !== undefined && !/^[A-Z]\d{3}[A-Z][1-9]$/.test(printerCode.toUpperCase())) return null;
+  if (value && !/^[A-Z](?:\d{0,11}|[A-Z]\d{0,10})$/.test(value)) return null;
+  const firstSeries = /^[A-Z]\d/.test(value);
+  const europa = /^[A-Z]{2}/.test(value);
+  const printer = printerCode?.toUpperCase().replace(/\s+/g, "");
+  if (printer !== undefined && !/^(?:[A-Z]\d{0,3}|[A-Z]\d{3}[A-Z][1-9]?)$/.test(printer)) return null;
   const isPrinter = printerCode !== undefined || europa;
-  const letter = (printerCode ?? value)[0]?.toUpperCase();
-  const code = (europa ? europaPrinters : isPrinter ? firstSeriesPrinters : firstSeriesIssuers)[letter];
+  const letter = (printer ?? value)[0];
+  if (!letter) return null;
+  let code: string | undefined;
+  if (firstSeries || europa) {
+    code = (europa ? europaPrinters : isPrinter ? firstSeriesPrinters : firstSeriesIssuers)[letter];
+  } else {
+    // Until the serial prefix identifies the series, show only an unambiguous country.
+    const candidates = [
+      (isPrinter ? firstSeriesPrinters : firstSeriesIssuers)[letter],
+      europaPrinters[letter],
+    ].filter(Boolean);
+    if (new Set(candidates).size === 1) code = candidates[0];
+  }
   if (!code) return null;
   const name = countries[code];
-  return { code: code.toLowerCase(), name, description: `${isPrinter ? "Printed in" : "Commissioned by"}: ${name}` };
+  return { code: code.toLowerCase(), name, description: `${isPrinter ? "Printed in" : firstSeries ? "Commissioned by" : "Country"}: ${name}` };
 }

@@ -25,9 +25,23 @@ test('printer flags use the correct series independently of the issuer', () => {
   assert.equal(banknoteCountry('FA0000000000', 'F001A1').code, 'bg');
 });
 
-test('incomplete and unknown codes never invent a flag', () => {
-  for (const serial of ['', 'X', 'not a serial', 'A00000000000', 'AA0000000000']) assert.equal(banknoteCountry(serial), null);
-  assert.equal(banknoteCountry('', 'R001A1'), null);
+test('flags appear from unambiguous prefixes before codes are complete', () => {
+  assert.equal(banknoteCountry('X').code, 'de');
+  assert.equal(banknoteCountry('M').code, 'pt');
+  assert.equal(banknoteCountry('X0').description, 'Commissioned by: Germany');
+  assert.equal(banknoteCountry('MA').description, 'Printed in: Portugal');
+  for (const printer of ['R', 'R0', 'R001', 'R001A', 'R001A1']) {
+    assert.equal(banknoteCountry('', printer).code, 'de');
+  }
+  assert.equal(banknoteCountry('X0', 'N').code, 'gr');
+  assert.equal(banknoteCountry('NA', 'N').code, 'at');
+});
+
+test('ambiguous prefixes and unknown or malformed codes never invent a flag', () => {
+  for (const serial of ['', 'E', 'F', 'H', 'not a serial', 'A00000000000', 'AA0000000000']) assert.equal(banknoteCountry(serial), null);
+  assert.equal(banknoteCountry('', 'N'), null);
+  assert.equal(banknoteCountry('', 'M'), null);
+  assert.equal(banknoteCountry('', 'RA'), null);
   assert.equal(banknoteCountry('X00000000000', 'Q001A1'), null);
   assert.equal(banknoteCountry('X00000000000', 'R001A0'), null);
 });
