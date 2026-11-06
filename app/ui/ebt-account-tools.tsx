@@ -92,8 +92,9 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
   </>;
 }
 
-function EbtMap({ url, label }: { url: string | null; label: string }) {
+function EbtMap({ url, label, expanded = false }: { url: string | null; label: string; expanded?: boolean }) {
   if (!url) return null;
+  if (expanded) return <figure className="ebt-map"><figcaption>{label}</figcaption><img src={url} alt={label} loading="lazy" referrerPolicy="no-referrer" /></figure>;
   return <details className="ebt-map"><summary>{label}</summary><a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={label} loading="lazy" referrerPolicy="no-referrer" /></a></details>;
 }
 
@@ -108,22 +109,24 @@ export function PersonalProfile({ onTotals }: { onTotals: (notes: number, hits: 
 }
 
 function HitJourney({ id }: { id: string }) {
-  const [open, setOpen] = useState(false);
-  const result = useEbtData<{ journey: EbtJourney }>(open ? `/api/ebt/journey?id=${encodeURIComponent(id)}` : null);
+  const result = useEbtData<{ journey: EbtJourney }>(`/api/ebt/journey?id=${encodeURIComponent(id)}`);
   const journey = result.data?.journey;
-  return <div className="hit-journey"><button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Hide journey" : "Show hit journey"}</button>{open && <><LoadStatus {...result} />{journey && <>
+  return <div className="hit-journey"><LoadStatus {...result} />{journey && <>
     <p><b>{journey.total_km.toLocaleString()} km</b> over <b>{journey.total_days.toLocaleString()} days</b></p>
     <ol>{journey.steps.map((step) => <li key={step.step_id}><strong>{step.location_name}, {step.country_name}</strong><span>{step.timestamp} · {step.user_name}</span>{step.step_id > 0 && <span>{step.hit_km.toLocaleString()} km · {step.hit_days.toLocaleString()} days since previous entry</span>}{step.comment && <p>{step.comment}</p>}</li>)}</ol>
-    <EbtMap url={journey.img_url_europe} label="Journey in Europe" /><EbtMap url={journey.img_url_world} label="Journey worldwide" />
-  </>}</>}</div>;
+    <EbtMap url={journey.img_url_europe} label="Journey in Europe" expanded /><EbtMap url={journey.img_url_world} label="Journey worldwide" expanded />
+    {!journey.steps.length && <p>Entry details are not available from EBT yet.</p>}
+  </>}</div>;
 }
 
 export function SubmissionReceipts({ receipts }: { receipts: Receipt[] }) {
   if (!receipts.length) return null;
-  return <section className="submission-receipts" aria-label="Last submission results"><h2>Last submission</h2>{receipts.map((receipt) => {
+  const hits = receipts.filter((receipt) => Number(receipt.result?.status) === 1);
+  const details = receipts.filter((receipt) => Number(receipt.result?.status) !== 0);
+  return <section className="submission-receipts" aria-label="Last submission results"><h2>Last submission: {hits.length} {hits.length === 1 ? "hit" : "hits"}</h2>{details.map((receipt) => {
     const id = String(receipt.result?.billId ?? "");
     const hasId = /^\d{1,12}$/.test(id);
     const status = Number(receipt.result?.status);
-    return <article key={receipt.id} className={status === 1 ? "receipt-hit" : ""}><strong>€{receipt.denomination} · {receipt.serial}</strong><p>{submissionMessage(receipt.result)}</p>{hasId && <a href={`https://www.eurobilltracker.com/notes/?id=${id}`} target="_blank" rel="noopener noreferrer">Open note on EBT ↗</a>}{status === 1 && hasId && <HitJourney id={id} />}</article>;
+    return <article key={receipt.id} className={status === 1 ? "receipt-hit" : ""}><strong>€{receipt.denomination} · {receipt.serial}</strong><p>{submissionMessage(receipt.result)}</p>{status === 1 && (hasId ? <HitJourney id={id} /> : <p>EBT did not provide a note ID, so journey details are unavailable.</p>)}</article>;
   })}</section>;
 }
