@@ -113,3 +113,40 @@ test('cookie deletion retains the same security attributes as login', () => {
   const cookie = shared.clearSession(shared.noStoreJson({ ok: true })).headers.get('set-cookie');
   for (const attribute of ['HttpOnly', 'Secure', 'SameSite=lax', 'Path=/', 'Max-Age=0']) assert(cookie.toLowerCase().includes(attribute.toLowerCase()));
 });
+
+test('sign-in is session-only unless a boolean remember-me choice is explicitly enabled', async () => {
+  const credentials = { email: 'fixture@example.test', password: 'fixture' };
+  const account = { sessionid: 'fixture-session', username: 'Tracker' };
+  for (const choice of [{}, { rememberMe: false }]) {
+    const target = api('login', () => account);
+    assert.equal((await target.POST(request({ ...credentials, ...choice }))).status, 200);
+    assert.equal(target.cookies[0][2].maxAge, undefined);
+    assert.equal(target.cookies[0][2].expires, undefined);
+  }
+  const remembered = api('login', () => account);
+  await remembered.POST(request({ ...credentials, rememberMe: true }));
+  assert(remembered.cookies[0][2].maxAge >= 180 * 86400);
+  assert(remembered.cookies[0][2].maxAge <= 184 * 86400);
+  assert(!('rememberMe' in remembered.calls[0]), 'The local cookie preference is not sent to EBT');
+  for (const rememberMe of ['true', 1, null, {}]) {
+    const target = api('login', () => account);
+    assert.equal((await target.POST(request({ ...credentials, rememberMe }))).status, 400);
+    assert.equal(target.calls.length, 0);
+  }
+});
+
+test('remember-me uses six calendar months and clamps month-end and leap-year dates', () => {
+  const { loginCookieOptions } = load('app/api/ebt/shared.ts');
+  for (const [start, end] of [
+    ['2026-11-06T12:00:00Z', '2027-05-06T12:00:00Z'],
+    ['2026-08-31T12:00:00Z', '2027-02-28T12:00:00Z'],
+    ['2027-08-31T12:00:00Z', '2028-02-29T12:00:00Z'],
+    ['2026-05-31T12:00:00Z', '2026-11-30T12:00:00Z'],
+  ]) {
+    const cookie = loginCookieOptions(true, new Date(start));
+    assert.equal(cookie.maxAge, (Date.parse(end) - Date.parse(start)) / 1000);
+    assert.equal(cookie.httpOnly, true);
+    assert.equal(cookie.secure, true);
+    assert.equal(cookie.sameSite, 'lax');
+  }
+});

@@ -98,3 +98,5 @@ button { cursor:pointer; }
 .camera-spinner { width:32px; height:32px; border:3px solid #ffffff26; border-top-color:var(--mint); border-radius:50%; animation:camera-spin .8s linear infinite; }
 @keyframes camera-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .camera-spinner { animation:none; } }
+.login-form .remember-me { display:flex; align-items:flex-start; gap:9px; font-size:13px; line-height:1.4; }
+.login-form .remember-me input { width:18px; height:18px; flex:none; margin:0; accent-color:var(--mint-dark); }

@@ -4,6 +4,17 @@ export const EBT_API_URL = "https://api.eurobilltracker.com/";
 export const SESSION_COOKIE = "ebt-web-session";
 export const SESSION_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", secure: true, path: "/" } as const;
 
+export function loginCookieOptions(rememberMe: boolean, now = new Date()) {
+  if (!rememberMe) return { ...SESSION_COOKIE_OPTIONS };
+  const expires = new Date(now);
+  const day = expires.getUTCDate();
+  expires.setUTCDate(1);
+  expires.setUTCMonth(expires.getUTCMonth() + 6);
+  const lastDay = new Date(Date.UTC(expires.getUTCFullYear(), expires.getUTCMonth() + 1, 0)).getUTCDate();
+  expires.setUTCDate(Math.min(day, lastDay));
+  return { ...SESSION_COOKIE_OPTIONS, maxAge: Math.floor((expires.getTime() - now.getTime()) / 1000) };
+}
+
 export async function ebtRequest(parameters: Record<string, string>) {
   const body = new URLSearchParams(parameters);
   const response = await fetch(EBT_API_URL, {

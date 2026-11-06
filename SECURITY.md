@@ -16,7 +16,7 @@ If a credential was exposed, revoke or rotate it through its provider. Removing 
 
 ## Security boundaries and limits
 
-- Passwords are forwarded over HTTPS by server-side routes to the official EBT API. The application does not persist them. The EBT session is held in a Secure, HttpOnly, SameSite cookie.
+- Passwords are forwarded over HTTPS by server-side routes to the official EBT API. The application does not persist them. The EBT session is held in a Secure, HttpOnly, SameSite cookie. It is session-only by default; an explicit remember-me choice permits persistence for up to six calendar months, subject to EBT expiring the session sooner.
 - Browser local storage contains drafts and the note queue. It is accessible to scripts running on the same origin and to anyone with access to the browser profile; it is not encrypted secret storage.
 - Authenticated API responses must remain `no-store` and outside service-worker caches. Preserve mutation origin/content-type checks, body-size limits and shared validation.
 - Dependency audits and automated tests are useful checks, not guarantees that a deployment is free of vulnerabilities.

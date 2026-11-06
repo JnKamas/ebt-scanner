@@ -2,7 +2,7 @@
 
 Reviewed 2026-11-06. The review covered the scanner, entry/edit/queue flows, authentication, API routes, local persistence, service worker, and dependency lockfile. All EBT operations in automated tests use fixtures; no real credentials or notes are submitted.
 
-Validation completed: **45 unit/API/security/asset-integrity tests**, **27 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency versions unchanged by subsequent refactoring and release preparation).
+Validation completed: **47 unit/API/security/asset-integrity tests**, **29 browser tests**, TypeScript and the production build passed. Final npm audit: **0 known vulnerabilities** (dependency versions unchanged by subsequent application changes).
 
 Open-source release files now include the MIT [LICENSE](LICENSE), [contribution guide](CONTRIBUTING.md), [security policy](SECURITY.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [third-party notices](THIRD_PARTY_NOTICES.md). The active OCR models and runtime have recorded upstream sources and SHA-256 hashes; model weights also match the official model cards. An asset-integrity test prevents unrecorded replacements. Unused legacy runtime copies were removed. Repository visibility and GitHub private-reporting settings require separate verification in GitHub.
 
@@ -34,6 +34,7 @@ Additional browser checks cover OS install guidance, early flags, invalid-field 
 - **Unbounded API bodies:** login is limited to 4 KiB and insertion to 64 KiB, checked against actual streamed bytes as well as any declared length.
 - **Credential forwarding on redirect:** the fixed HTTPS EBT transport rejects redirects instead of replaying credentials to a redirect destination.
 - **False sign-out and stale authentication responses:** failed logout retains the signed-in state with an explicit retry message; old session responses cannot override newer login/logout operations.
+- **Persistent login choice:** authentication now defaults to a session-only cookie. The unchecked remember-me control explicitly opts into up to six calendar months, using month-end/leap-year-safe expiry calculations and retaining the existing cookie security attributes. Upstream EBT session expiry may require sign-in sooner. Tests cover default/false/true/malformed choices and both browser form submissions. No analytics collection has been added.
 - **Embedding and MIME handling:** responses include a frame-ancestor policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, a referrer policy, and restrictions on object/base elements.
 - **Private cache/storage handling:** authenticated API responses remain `no-store`; service-worker tests verify API requests bypass caches. Only whitelisted note/draft fields are persisted. Passwords and session IDs are excluded from saved notes and JSON login responses; the session cookie stays Secure, HttpOnly and SameSite=Lax.
 - **Text injection:** hit comments are rendered as React text. A browser test includes an image/onerror payload and verifies it creates neither an element nor script execution. Map URLs remain limited to official EBT HTTPS hosts.

@@ -34,6 +34,7 @@ export default function EbtScanner() {
   }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const accountRequestRef = useRef(0);
@@ -607,13 +608,14 @@ export default function EbtScanner() {
     setIsLoggingIn(true);
     setMessage("");
     try {
-      const response = await fetch("/api/ebt/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const response = await fetch("/api/ebt/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, rememberMe }) });
       const data = await response.json() as { account?: EbtAccount; error?: string };
       if (!response.ok || !data.account) throw new Error(data.error || "Could not sign in to EBT.");
       setAccount(data.account);
       applyEbtDefaults(data.account);
       setEmail("");
       setPassword("");
+      setRememberMe(false);
       setMessage(`Signed in to EuroBillTracker as ${data.account.username}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not sign in to EBT.");
@@ -771,7 +773,7 @@ export default function EbtScanner() {
       </div>
     </section>}
 
-    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><label className="remember-me"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} aria-describedby="remember-me-help" /><span>Remember me for up to 6 months</span></label><small id="remember-me-help">Checking this stores a sign-in cookie on this device for up to 6 months. EBT may ask you to sign in sooner.</small><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><small>Your password is not stored in this app or browser storage.</small></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
     {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your notes stay yours.</h2><p>Your queue and location stay in this browser. Sign-in sends your password over HTTPS through this app’s server to EuroBillTracker. The app never saves your password.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>
