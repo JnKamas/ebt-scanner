@@ -77,7 +77,12 @@ export default function EbtWeb() {
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<Partial<Record<Tab, string>>>({});
+  const message = messages[tab] || "";
+  function setMessage(value: string) {
+    // Async actions retain their originating tab, so scan results stay in Entry.
+    setMessages((current) => ({ ...current, [tab]: value }));
+  }
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
   const [isScanning, setIsScanning] = useState(false);
