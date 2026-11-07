@@ -7,6 +7,5 @@ out/
 .DS_Store
 
 .vercel
-public/sw.js
 test-results/
 playwright-report/

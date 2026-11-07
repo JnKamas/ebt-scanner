@@ -115,13 +115,14 @@ export default function EbtScanner() {
     }
     setStorageReady(true);
     if ("serviceWorker" in navigator) {
-      if (process.env.NODE_ENV === "production") {
-        void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-      } else {
-        navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister()));
-        window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key))));
-      }
+      const retiredScript = new URL("/sw.js", window.location.origin).href;
+      void navigator.serviceWorker.getRegistrations().then((registrations) => Promise.all(
+        registrations.filter((registration) => [registration.active, registration.waiting, registration.installing].some((worker) => worker?.scriptURL === retiredScript))
+          .map((registration) => registration.unregister())
+      )).catch(() => undefined);
     }
+    // Remove old app-shell caches without touching drafts, notes or other apps.
+    void window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key)))).catch(() => undefined);
   }, []);
 
   useEffect(() => {

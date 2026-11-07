@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       ],
     }, {
+      source: "/sw.js",
+      headers: [{ key: "Cache-Control", value: "no-store" }]
+    }, {
       source: "/_next/static/:kind(chunks|media)/:file",
       // Paddle's isolated OCR worker uses generated JS functions. Keep that
       // exception out of the document policy and restrict worker network access.

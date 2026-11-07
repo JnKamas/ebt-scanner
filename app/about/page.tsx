@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+const repository = "https://github.com/JnKamas/ebt-scanner";
+const sourceRef = process.env.VERCEL_GIT_COMMIT_SHA?.match(/^[a-f0-9]{40}$/)?.[0]
+  ?? (process.env.VERCEL_ENV === "production" ? "main" : "develop");
+const source = `${repository}/blob/${sourceRef}`;
+
 export const metadata: Metadata = {
   title: "About & privacy | EBT Scanner",
   description: "Who maintains EBT Scanner, how banknote scans, passwords and sessions are handled, and what you can verify."
@@ -11,7 +16,7 @@ export default function About() {
     <Link href="/" className="about-back">← Back to scanner</Link>
     <p className="eyebrow">ABOUT & PRIVACY</p>
     <h1>Who runs EBT Scanner, and where your data goes.</h1>
-    <p className="about-intro">An independent EuroBillTracker client for scanning banknotes and preparing entries. You can scan, edit and queue notes without signing in.</p>
+    <p className="about-intro">An independent EuroBillTracker client for scanning banknotes and preparing entries. You can scan, edit and queue notes without signing in. An internet connection is required.</p>
 
     <section aria-labelledby="author-heading">
       <h2 id="author-heading">Who maintains it</h2>
@@ -44,11 +49,11 @@ export default function About() {
       <h2 id="source-heading">Source code and review status</h2>
       <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
       <ul className="source-links">
-        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/login/route.ts" target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/shared.ts" target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-scanner/tree/main/app/api/ebt" target="_blank" rel="noopener noreferrer">Backend routes, including submission and logout</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/REVIEW.md" target="_blank" rel="noopener noreferrer">Internal review, tests and known limitations</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
+        <li><a href={`${source}/app/api/ebt/login/route.ts`} target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
+        <li><a href={`${source}/app/api/ebt/shared.ts`} target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
+        <li><a href={`${repository}/tree/${sourceRef}/app/api/ebt`} target="_blank" rel="noopener noreferrer">Backend routes, including submission and logout</a></li>
+        <li><a href={`${source}/REVIEW.md`} target="_blank" rel="noopener noreferrer">Testing notes</a></li>
+        <li><a href={`${source}/SECURITY.md`} target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
       </ul>
       <p>The project has automated tests and an internal code review. These are not an independent security audit. No independent audit is published here, and this explanation is not proof of how a deployed server is configured.</p>
       <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused. You can prepare notes locally and use the official <a href="https://www.eurobilltracker.com/" target="_blank" rel="noopener noreferrer">EuroBillTracker website</a> to enter them.</p>
