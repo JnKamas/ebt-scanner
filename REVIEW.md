@@ -30,12 +30,29 @@ have recorded sources, licenses and SHA-256 hashes in
 
 - Real banknotes, laptop focus and iPhone Safari need hands-on testing.
 - Live EBT availability and account behavior are outside the fixture tests.
-- Hosting operators must check HTTPS, private vulnerability reporting and rate
-  limits. The app has no durable distributed login rate limiter.
+- A Vercel login throttle is active on previews: 10 POST requests per IP per
+  10 minutes, counted per region. Shared connections share the limit; attackers
+  using multiple IPs or regions can exceed it. The rule is recorded in
+  [login-rate-limit.json](security/login-rate-limit.json) and must be enabled for
+  production when the security update is released. Local tests do not use it.
+  A credential-free preview check returned 400 for ten invalid requests and 429
+  for the eleventh, after passing Vercel's preview access gate.
+- Hosting account access, log retention and private vulnerability reporting still
+  need separate verification.
 - Use one entry tab at a time: simultaneous local-storage edits are not reconciled.
 - Offline use needs a previous online visit; OCR also needs downloaded models.
-- The content security policy restricts embedding and objects, but does not use
-  a nonce-based script policy.
+- Development 1.2.0 uses fresh script nonces. The isolated Paddle OCR worker has
+  an eval exception required by its runtime; page scripts do not. Inline styles
+  remain allowed for the scanner overlay. Offline HTML retains its original CSP
+  and matching nonce. This policy needs browser and real-worker checks on changes.
+- New remember-me cookies last 30 days. Existing longer-lived cookies retain
+  their original expiry until sign-out and a new login.
+- Logout verifies that EBT rejects the old token. If confirmation fails, users
+  can retry or explicitly clear only the local cookie; upstream revocation is
+  not claimed for local-only sign-out.
+
+Security browser checks cover blocked script injection, throttling messages,
+both logout outcomes, and real local OCR inference under the new policy.
 
 ## Verify locally
 

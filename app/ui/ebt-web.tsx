@@ -20,6 +20,7 @@ type OcrStatus = "loading" | "ready" | "error";
 
 export default function EbtScanner() {
   const [tab, setTab] = useState<Tab>("entry");
+  const [logoutNeedsConfirmation, setLogoutNeedsConfirmation] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
   const [draft, setDraft] = useState(blankDraft);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -343,35 +344,7 @@ export default function EbtScanner() {
       setOcrStatus("loading");
       setOcrError("");
       if (!ocrLoadingRef.current) {
-        ocrLoadingRef.current = (async () => {
-          const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
-          const options = {
-            textDetectionModelName: "PP-OCRv6_tiny_det",
-            textRecognitionModelName: "PP-OCRv6_tiny_rec",
-            worker: true,
-            textDetectionModelAsset: { url: "/ocr/PP-OCRv6_tiny_det_onnx_infer.tar" },
-            textRecognitionModelAsset: { url: "/ocr/PP-OCRv6_tiny_rec_onnx_infer.tar" },
-            ortOptions: {
-              backend: "wasm",
-              // Browsers without cross-origin isolation cannot use WASM threads.
-              // One predictable SIMD runtime is quicker to start and works everywhere.
-              numThreads: 1,
-              simd: true,
-              wasmPaths: "/ocr/ort-1.24.3/"
-            }
-          };
-          try {
-            return await PaddleOCR.create(options) as PaddleEngine;
-          } catch {
-            // PaddleOCR's prebuilt worker carries the JSEP ONNX runtime. Some
-            // Android and Windows browsers request that extra module even when
-            // the app is configured for the ordinary WASM backend. Run the same
-            // browser-side engine on the page when that worker cannot start.
-            // This is also the reliable path used by iOS, and keeps OCR entirely
-            // local while retaining the worker fast path where it is available.
-            return PaddleOCR.create({ ...options, worker: false }) as Promise<PaddleEngine>;
-          }
-        })();
+        ocrLoadingRef.current = import("../lib/ocr-client").then(({ createOcrWorker }) => createOcrWorker());
       }
       try {
         ocrRef.current = await ocrLoadingRef.current;
@@ -610,9 +583,11 @@ export default function EbtScanner() {
     setMessage("");
     try {
       const response = await fetch("/api/ebt/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, rememberMe }) });
+      if (response.status === 429) throw new Error("Too many sign-in attempts from this connection. Wait up to 10 minutes, then try again.");
       const data = await response.json() as { account?: EbtAccount; error?: string };
       if (!response.ok || !data.account) throw new Error(data.error || "Could not sign in to EBT.");
       setAccount(data.account);
+      setLogoutNeedsConfirmation(false);
       applyEbtDefaults(data.account);
       setEmail("");
       setPassword("");
@@ -625,19 +600,24 @@ export default function EbtScanner() {
     }
   }
 
-  async function logout() {
+  async function logout(localOnly = false) {
     if (isLoggingOut) return;
     accountRequestRef.current += 1;
     setIsLoggingOut(true);
     try {
-      const response = await fetch("/api/ebt/logout", { method: "POST", headers: { "Content-Type": "application/json" } });
+      const response = await fetch("/api/ebt/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ localOnly }) });
       if (!response.ok) throw new Error("Sign-out failed");
+      const result = await response.json() as { upstreamInvalidated?: boolean; noSession?: boolean };
       setAccount(null);
       setReceipts([]);
       setPassword("");
-      setMessage("Signed out of EuroBillTracker on this device.");
+      setLogoutNeedsConfirmation(false);
+      setMessage(result.noSession ? "No sign-in session remains on this device." : result.upstreamInvalidated === true
+        ? "Signed out. EBT confirmed that this session is no longer valid."
+        : "Signed out on this device only. EBT session invalidation was not confirmed. If you suspect account access, change your password through EBT and contact EBT about revoking sessions.");
     } catch {
-      setMessage("Could not sign out. Your browser session may still be active. Check your connection and retry Sign out.");
+      setLogoutNeedsConfirmation(true);
+      setMessage("Could not sign out with confirmation from EBT. Your session may still be active. Retry Sign out, or choose Sign out on this device only; that removes the local cookie without confirming EBT invalidation.");
     } finally { setIsLoggingOut(false); }
   }
 
@@ -775,7 +755,7 @@ export default function EbtScanner() {
       </div>
     </section>}
 
-    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={logout} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button></div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><label className="remember-me"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} aria-describedby="remember-me-help" /><span>Remember me for up to 6 months</span></label><small id="remember-me-help">Checking this stores a sign-in cookie on this device for up to 6 months. EBT may ask you to sign in sooner.</small><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><aside className="privacy-summary" aria-label="Sign-in privacy"><p>Sign-in sends your EBT email and password through the app server on Vercel to EBT over HTTPS. The app does not save your password. An EBT session cookie keeps you signed in.</p><Link href="/about" target="_blank" rel="noopener noreferrer">Who maintains this app, password handling &amp; source status</Link></aside></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
+    {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={() => void logout()} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button>{logoutNeedsConfirmation && <button type="button" onClick={() => void logout(true)} disabled={isLoggingOut}>Sign out on this device only</button>}</div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><label className="remember-me"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} aria-describedby="remember-me-help" /><span>Remember me for up to 30 days</span></label><small id="remember-me-help">Checking this stores a sign-in cookie on this device for up to 30 days. EBT may ask you to sign in sooner.</small><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><aside className="privacy-summary" aria-label="Sign-in privacy"><p>Sign-in sends your EBT email and password through the app server on Vercel to EBT over HTTPS. The app does not save your password. An EBT session cookie keeps you signed in.</p><Link href="/about" target="_blank" rel="noopener noreferrer">Who maintains this app, password handling &amp; source status</Link></aside></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
     {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your data and settings.</h2><aside className="privacy-summary"><Link href="/about" target="_blank" rel="noopener noreferrer">About the maintainer, privacy &amp; source status</Link></aside><p>Your queue and location stay in this browser. Sign-in sends your password over HTTPS through this app’s server to EuroBillTracker. The app never saves your password.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>

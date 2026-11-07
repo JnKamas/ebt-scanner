@@ -8,8 +8,12 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "DENY" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-        { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
       ],
+    }, {
+      source: "/_next/static/:kind(chunks|media)/:file",
+      // Paddle's isolated OCR worker uses generated JS functions. Keep that
+      // exception out of the document policy and restrict worker network access.
+      headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; script-src 'self' blob: 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self' blob:; worker-src 'self' blob:" }]
     }, {
       source: "/ocr/:path*",
       headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]

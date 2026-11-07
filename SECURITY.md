@@ -14,7 +14,8 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
 ## What to know
 
 - The app server forwards login credentials to EBT over HTTPS without saving them.
-  A Secure, HttpOnly, SameSite=Lax cookie holds the session. Remember-me is optional.
+  A Secure, HttpOnly, SameSite=Lax cookie holds the session. New remember-me
+  cookies in the upcoming security update are optional and limited to 30 days.
 - Drafts and queued notes live in browser local storage. Anyone with access to
   that browser profile may be able to read them.
 - Authenticated responses must not be cached. Keep the API's request checks and

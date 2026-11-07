@@ -31,7 +31,7 @@ comments and the queue stay in this browser. Scanning does not require sign-in.
 
 Signing in sends your email and password through the app's server on Vercel to
 EBT over HTTPS. The app does not save your password. An HttpOnly cookie holds
-your EBT session; **Remember me** optionally keeps it for up to six months.
+your EBT session; **Remember me** optionally keeps it for up to 30 days.
 Submitting sends the selected notes to EBT. **Use my location** sends rounded
 coordinates to Photon for an address lookup.
 

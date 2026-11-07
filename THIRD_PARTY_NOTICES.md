@@ -8,6 +8,7 @@ Dependencies and bundled assets keep their own licenses and notices.
 | Component | License | Included notices |
 | --- | --- | --- |
 | PaddleOCR.js 0.4.2, PaddlePaddle Authors | Apache-2.0 | [License](public/ocr/LICENSE.PaddleOCR.txt), [source](https://github.com/PaddlePaddle/PaddleOCR/tree/main/paddleocr-js) |
+| OpenCV.js 4.10.0-release.1, TechStark package (used by PaddleOCR) | Apache-2.0 | [Source and notices](https://github.com/TechStark/opencv-js) |
 | PP-OCRv6 tiny detection and recognition models | Apache-2.0 | [Detection card](public/ocr/tiny_det.MODEL_CARD.md), [recognition card](public/ocr/tiny_rec.MODEL_CARD.md), [license](public/ocr/LICENSE.PaddleOCR.txt) |
 | ONNX Runtime Web 1.24.3, Microsoft Corporation | MIT | [License](public/ocr/LICENSE.onnxruntime.txt), [upstream notices](public/ocr/THIRD_PARTY_NOTICES.onnxruntime.txt), [source](https://github.com/microsoft/onnxruntime/tree/v1.24.3) |
 | flag-icons, Copyright (c) 2013 Panayiotis Lipiridis | MIT | [License](public/flags/LICENSE.txt), [source](https://github.com/lipis/flag-icons) |

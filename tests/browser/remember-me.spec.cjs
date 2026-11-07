@@ -11,7 +11,7 @@ for (const rememberMe of [false, true]) {
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Profile' }).click();
-    const choice = page.getByRole('checkbox', { name: 'Remember me for up to 6 months' });
+    const choice = page.getByRole('checkbox', { name: 'Remember me for up to 30 days' });
     await expect(choice).not.toBeChecked();
     await expect(page.locator('#remember-me-help')).toContainText('sign-in cookie');
     await expect(page.locator('#remember-me-help')).toContainText('sooner');

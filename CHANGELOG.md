@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+Next version: **1.2.0**. Security improvements are being tested on develop.
+
+- Added a Vercel preview login limit of 10 requests per IP per 10 minutes.
+- Restrict page scripts with fresh nonces and limit external connections.
+- Keep SDK/OpenCV loading in an isolated local OCR worker, preserving a strict page policy.
+- Reduced optional remember-me from six months to 30 days.
+- Verify EBT session invalidation on logout; offer retry or explicit local-only sign-out when confirmation fails.
+
 ## [1.1.0] - 2026-11-07
 
 - Added a separate development preview so changes can be tested before release.

@@ -125,8 +125,7 @@ test('sign-in is session-only unless a boolean remember-me choice is explicitly 
   }
   const remembered = api('login', () => account);
   await remembered.POST(request({ ...credentials, rememberMe: true }));
-  assert(remembered.cookies[0][2].maxAge >= 180 * 86400);
-  assert(remembered.cookies[0][2].maxAge <= 184 * 86400);
+  assert.equal(remembered.cookies[0][2].maxAge, 30 * 86400);
   assert(!('rememberMe' in remembered.calls[0]), 'The local cookie preference is not sent to EBT');
   for (const rememberMe of ['true', 1, null, {}]) {
     const target = api('login', () => account);
@@ -135,18 +134,48 @@ test('sign-in is session-only unless a boolean remember-me choice is explicitly 
   }
 });
 
-test('remember-me uses six calendar months and clamps month-end and leap-year dates', () => {
+test('remember-me is limited to 30 days and retains cookie protections', () => {
   const { loginCookieOptions } = load('app/api/ebt/shared.ts');
-  for (const [start, end] of [
-    ['2026-11-06T12:00:00Z', '2027-05-06T12:00:00Z'],
-    ['2026-08-31T12:00:00Z', '2027-02-28T12:00:00Z'],
-    ['2027-08-31T12:00:00Z', '2028-02-29T12:00:00Z'],
-    ['2026-05-31T12:00:00Z', '2026-11-30T12:00:00Z'],
-  ]) {
-    const cookie = loginCookieOptions(true, new Date(start));
-    assert.equal(cookie.maxAge, (Date.parse(end) - Date.parse(start)) / 1000);
+  for (const remembered of [false, true]) {
+    const cookie = loginCookieOptions(remembered);
+    assert.equal(cookie.maxAge, remembered ? 30 * 86400 : undefined);
     assert.equal(cookie.httpOnly, true);
     assert.equal(cookie.secure, true);
     assert.equal(cookie.sameSite, 'lax');
   }
+});
+
+test('logout clears the cookie only after EBT rejects the previous token', async () => {
+  const target = api('logout', p => p.m === 'logout' ? true : false);
+  const response = await target.POST(request({}));
+  assert.equal(response.status, 200);
+  assert.equal(response.body.upstreamInvalidated, true);
+  assert.equal(response.cleared, true);
+  assert.deepEqual(target.calls.map(p => p.m), ['logout', 'sessioncheck']);
+  assert(target.calls.every(p => p.PHPSESSID === 'session'));
+  const absent = api('logout', () => { throw new Error('No session to revoke'); });
+  const noSession = await absent.POST(request({}, { Cookie: '' }));
+  assert.equal(noSession.body.noSession, true);
+  assert.equal(noSession.body.upstreamInvalidated, false);
+  assert.equal(absent.calls.length, 0);
+  const oldClient = api('logout', p => p.m === 'logout' ? true : false);
+  const legacyRequest = new NextRequest('https://app.test/api/ebt/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://app.test', Cookie: 'ebt-web-session=session' } });
+  assert.equal((await oldClient.POST(legacyRequest)).body.upstreamInvalidated, true);
+  assert.deepEqual(oldClient.calls.map(p => p.m), ['logout', 'sessioncheck']);
+});
+
+test('unconfirmed logout retains the cookie for retry; local-only sign-out is explicit', async () => {
+  for (const answer of [() => { throw new Error('unreachable'); }, () => true, () => ({ username: 'Tracker' })]) {
+    const target = api('logout', answer);
+    const response = await target.POST(request({}));
+    assert.equal(response.status, 502);
+    assert.equal(response.cleared, undefined);
+    assert.equal(response.body.upstreamInvalidated, false);
+  }
+  const target = api('logout', () => { throw new Error('must not call upstream'); });
+  const response = await target.POST(request({ localOnly: true }));
+  assert.equal(response.cleared, true);
+  assert.equal(response.body.upstreamInvalidated, false);
+  assert.equal(target.calls.length, 0);
+  assert.equal((await target.POST(request({ localOnly: 'true' }))).status, 400);
 });
