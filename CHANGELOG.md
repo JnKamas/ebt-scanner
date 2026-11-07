@@ -6,11 +6,13 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.2.0**. Security improvements are being tested on develop.
 
+- Removed the Testing notes link and the alternative-entry sentence from About & privacy.
+
 - Checked the public docs against the code and hosting settings; clarified preview versus production, session-cookie behavior and the security contact route.
 
 - Removed offline app caching; EBT Scanner requires an internet connection.
 - Updated the testing notes to reflect completed hands-on banknote, laptop and iPhone Safari tests.
-- About & privacy now links to the deployed version's source and testing notes, so previews do not show outdated main-branch documents.
+- About & privacy now links to the deployed version's source, so previews do not show outdated main-branch code.
 
 - Renamed the GitHub repository to JnKamas/ebt-scanner and updated source links.
 - Simplified repository link labels in About & privacy to GITHUB.

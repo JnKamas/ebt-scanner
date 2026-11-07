@@ -54,11 +54,10 @@ export default function About() {
         <li><a href={`${source}/app/api/ebt/login/route.ts`} target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
         <li><a href={`${source}/app/api/ebt/shared.ts`} target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
         <li><a href={`${repository}/tree/${sourceRef}/app/api/ebt`} target="_blank" rel="noopener noreferrer">Backend routes, including submission and logout</a></li>
-        <li><a href={`${source}/REVIEW.md`} target="_blank" rel="noopener noreferrer">Testing notes</a></li>
         <li><a href={`${source}/SECURITY.md`} target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
       </ul>
       <p>The app has automated tests; no independent security audit has been published. Public source lets you inspect the implementation, but does not independently verify the hosted service.</p>
-      <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused. You can prepare notes locally and use the official <a href="https://www.eurobilltracker.com/" target="_blank" rel="noopener noreferrer">EuroBillTracker website</a> to enter them.</p>
+      <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused.</p>
     </section>
   </main>;
 }
