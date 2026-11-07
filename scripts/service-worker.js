@@ -18,10 +18,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request).then((response) => {
       if (response.ok && response.headers.get("content-type")?.includes("text/html")) {
         const copy = response.clone();
-        event.waitUntil(caches.open(CACHE).then((cache) => cache.put("/", copy)));
+        event.waitUntil(caches.open(CACHE).then((cache) => cache.put(url.pathname, copy)));
       }
       return response;
-    }).catch(async () => (await caches.match("/")) || new Response("Open EBT Scanner online once before using it offline.", { status: 503 })));
+    }).catch(async () => (await caches.match(url.pathname)) || new Response("Open this page online once before using it offline.", { status: 503 })));
     return;
   }
   if (url.pathname === "/") return;

@@ -55,6 +55,8 @@ Use `npm.cmd`/local `.cmd` binaries in PowerShell if script execution is restric
 
 ## Limits and remaining operational work
 
+The About & privacy page documents the maintainer (Labrador10), credential forwarding, cookie lifetime and flags, local processing/storage, hosting and optional external requests, with links to the backend source. Before making the repository public, Gitleaks v8.30.1 scanned all 70 existing commits with no leaks reported, and separate scans of the current app, scripts and tests reported no leaks. These checks do not prove the absence of all secrets or constitute an independent audit. A browser check verifies that opening the explanation before sign-in retains unfinished form input without requesting the camera. The service worker caches document pages by path so visiting About cannot replace the offline scanner shell.
+
 - These are automated regressions and a source/dependency review, not a guarantee that every possible vulnerability or device failure is covered.
 - Scanner tests use a fake webcam and the real SDK interface with a fixture worker. Physical banknote accuracy, laptop camera focus and real iPhone Safari behavior still require device testing.
 - Mutations use fixture responses. Official EBT availability, response loss and credential validity were not exercised with a live account.

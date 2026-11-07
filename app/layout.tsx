@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "EBT Scanner",
-  description: "Fast, private EuroBillTracker note entry.",
+  description: "EuroBillTracker note entry with on-device scanning and a local queue.",
   applicationName: "EBT Scanner",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "EBT Scanner" },
