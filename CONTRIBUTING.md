@@ -47,6 +47,8 @@ Edit `scripts/service-worker.js` rather than generated `public/sw.js`. Use `npm 
 
 ## Pull requests and assets
 
+Target `develop` for changes and test its Vercel Preview deployment before release. The `main` branch serves production at https://ebt.eurocoins.cc. Merge `develop` into `main` only after production release approval. Keep local work on `develop` or a feature branch.
+
 Explain the concrete problem, resulting behavior and validation performed. Add regression coverage for behavior changes; keep pull requests focused. Follow the existing TypeScript and React style and prefer existing shared helpers for validation, OCR matching, accounts, storage and batching.
 
 For vendored models, runtimes or images, record the original source, version, SHA-256 and upstream license. Update [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `public/ocr/PROVENANCE.json` when relevant. Keep upstream notices intact and identify any modifications. Never commit `.env` files, credentials, browser storage exports or personal banknote data.

@@ -49,6 +49,20 @@ Use Node.js 22. Open http://localhost:3001. No environment variables or EBT acco
 
 Vercel automatically recognizes the Next.js project; no environment variables are required.
 
+### Production and development
+
+Use one Vercel project, `ebt-web`, with separate Git branches:
+
+| Version | Branch | Address |
+| --- | --- | --- |
+| Production | `main` | https://ebt.eurocoins.cc |
+| Development / testing | `develop` | Vercel Preview branch URL (see the deployment dashboard) |
+| Local development | `develop` or a feature branch | http://localhost:3001 |
+
+Push changes to `develop` to create a Preview deployment. Test in a laptop browser and merge `develop` into `main` only after approval for a production release. Feature branches can have their own Preview deployments. Vercel Preview runs a production build, so it can be tested under hosted conditions; local development uses the Next.js development server.
+
+Preview URLs retain the project's Vercel authentication protection. Drafts, settings, and queued notes are stored separately for each origin, so production data does not automatically appear in the preview. Both versions currently use the real EBT API: signing in and submitting notes from Preview performs real EBT actions. Use the fixture-based tests for simulated submissions.
+
 ## Navigation, camera preferences and batches
 
 The bottom navigation contains **Entry**, **Queue**, **Profile**, and **Settings**. Use Profile for EBT sign-in, sign-out, statistics, and maps. Both printer-code and serial scans use a fixed **70% minimum OCR confidence**; old saved thresholds are ignored and confidence sliders are no longer shown.
