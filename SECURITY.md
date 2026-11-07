@@ -1,24 +1,25 @@
-# Security policy
+# Security
 
-Security fixes target the current `main` branch. Older commits and deployments may not receive backported fixes. Keep your deployment and dependencies current.
+## Report a problem
 
-## Report a vulnerability privately
+Use GitHub's [private vulnerability report](https://github.com/JnKamas/ebt-web/security/advisories/new)
+if available. Otherwise, open an issue titled **Request for private security contact**
+without sharing the vulnerability itself.
 
-When enabled, use the repository's **Security → Report a vulnerability** feature:
+Include the affected version, browser, impact and steps to reproduce using fake
+data. Remove secrets and personal details from screenshots and logs. Do not test
+against other people's accounts or submit real notes to demonstrate a bug.
+If a credential leaked, revoke or change it; deleting a commit is not enough.
 
-https://github.com/JnKamas/ebt-web/security/advisories/new
+## What to know
 
-Availability depends on the repository's GitHub settings. If private reporting is unavailable, open an issue titled **Request for private security contact** with no vulnerability details. Ask the maintainer to arrange a private reporting channel before sharing the report. Do not put exploit details, passwords, session cookies, private URLs, personal locations or banknote serials in public issues or pull requests.
+- The app server forwards login credentials to EBT over HTTPS without saving them.
+  A Secure, HttpOnly, SameSite=Lax cookie holds the session. Remember-me is optional.
+- Drafts and queued notes live in browser local storage. Anyone with access to
+  that browser profile may be able to read them.
+- Authenticated responses must not be cached. Keep the API's request checks and
+  size limits when changing server code.
 
-Include the affected commit/version, browser and operating system, a description of the impact, and minimal reproduction steps using synthetic data. Redact logs, screenshots and request bodies. Prefer a local reproduction with the fixture API; do not test against other users' accounts or submit real banknotes to demonstrate a flaw.
-
-If a credential was exposed, revoke or rotate it through its provider. Removing it from the latest commit does not remove Git history or copies already made by others.
-
-## Security boundaries and limits
-
-- Passwords are forwarded over HTTPS by server-side routes to the official EBT API. The application does not persist them. The EBT session is held in a Secure, HttpOnly, SameSite cookie. It is session-only by default; an explicit remember-me choice permits persistence for up to six calendar months, subject to EBT expiring the session sooner.
-- Browser local storage contains drafts and the note queue. It is accessible to scripts running on the same origin and to anyone with access to the browser profile; it is not encrypted secret storage.
-- Authenticated API responses must remain `no-store` and outside service-worker caches. Preserve mutation origin/content-type checks, body-size limits and shared validation.
-- Dependency audits and automated tests are useful checks, not guarantees that a deployment is free of vulnerabilities.
-
-See [REVIEW.md](REVIEW.md) for tested behavior and remaining operational limits. Public deployment operators must verify their HTTPS, private reporting and rate-limit configuration; source-code tests do not verify those hosting settings. No response-time or support-service commitment is made by this volunteer project.
+Fixes target the current `main` branch. This volunteer project cannot promise
+response times. Tests are not an independent security audit; see
+[Review notes](REVIEW.md) for limits and hosting checks.

@@ -1,56 +1,39 @@
-# Contributing to EBT Scanner
+# Contributing
 
-Bug reports, documentation improvements and focused pull requests are welcome. For security concerns, follow [SECURITY.md](SECURITY.md) instead of posting details in a public issue.
+Bug reports, clearer docs and focused pull requests are welcome. Include what
+you expected, what happened and how to reproduce it. Use fake note and account
+data in examples. Report vulnerabilities through [Security](SECURITY.md).
 
-## Local setup
+## Getting started
 
-Use Node.js 22 and the committed npm lockfile:
+Follow the [README setup](README.md#run-locally). Work on `develop` or a feature
+branch and target `develop` in pull requests. Test the Vercel preview before
+asking for a production release; `main` deploys the live site.
 
-```sh
-npm ci
-npm run dev -- --port 3001
-```
+Keep changes small. Explain what changed and how you checked it. Preserve manual
+entry, local drafts and the printer-first scan flow. Camera access must follow
+an explicit Scan click. Detailed scanner rules are in [AGENTS.md](AGENTS.md).
 
-Open http://localhost:3001. In PowerShell, use `npm.cmd` if the `npm` script shim is blocked. No environment variables or real EBT account are needed to develop or run automated tests.
-
-## Product behavior to preserve
-
-- Prioritize a reliable laptop webcam workflow. Keep the layout responsive for later real-device testing.
-- Request camera permission only after an explicit Scan control is clicked; input and label clicks must remain ordinary editing actions.
-- Scan the printer code, then the serial number. Prepare OCR first, use the on-screen guide crop, and enforce the 15-second scan deadline, 70% OCR confidence and format/checksum checks.
-- Preserve manual entry and individual rescans. Show captured OCR results for review.
-- Keep drafts, location, comments and queued notes in browser storage. Never save passwords or session IDs there or expose them in client responses.
-- Use the supported EBT HTTPS API through the app's server routes. Do not add credential scraping or alternative login flows.
-- Do not register the service worker in development or cache authenticated API/RSC responses.
-
-See [AGENTS.md](AGENTS.md) for detailed project instructions and [REVIEW.md](REVIEW.md) for known limits and existing regression coverage.
-
-## Validate a change
+## Checks
 
 ```sh
 npm test
 npx tsc --noEmit
-```
-
-For application behavior, scanner, storage, API or build changes, also run:
-
-```sh
 # Stop development servers before building.
 npm run build
 npx playwright install chromium
 npm run test:browser
+npm audit
 ```
 
-Browser tests start their own servers on ports 3001 and 3002. They use fixture API responses and a fake webcam; do not replace fixtures with real passwords or live note submissions. Documentation-only changes do not require repeating the complete browser suite.
+Use `npm.cmd` in PowerShell if needed. Browser tests use fake EBT responses and
+a fake camera, with servers on ports 3001 and 3002. Never use real credentials
+or submit real notes in tests. Documentation edits only need a link/diff check.
 
-Edit `scripts/service-worker.js` rather than generated `public/sw.js`. Use `npm run build` so the matching offline shell is generated. Keep dependency updates and `package-lock.json` together.
+Edit `scripts/service-worker.js`, not generated `public/sw.js`. Build with
+`npm run build` to generate the offline worker. Keep the lockfile with dependency
+updates. Record sources, hashes and licenses for bundled assets in
+[Third-party notices](THIRD_PARTY_NOTICES.md) and `public/ocr/PROVENANCE.json`.
 
-## Pull requests and assets
-
-Target `develop` for changes and test its Vercel Preview deployment before release. The `main` branch serves production at https://ebt.eurocoins.cc. Merge `develop` into `main` only after production release approval. Keep local work on `develop` or a feature branch.
-
-Explain the concrete problem, resulting behavior and validation performed. Add regression coverage for behavior changes; keep pull requests focused. Follow the existing TypeScript and React style and prefer existing shared helpers for validation, OCR matching, accounts, storage and batching.
-
-For vendored models, runtimes or images, record the original source, version, SHA-256 and upstream license. Update [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `public/ocr/PROVENANCE.json` when relevant. Keep upstream notices intact and identify any modifications. Never commit `.env` files, credentials, browser storage exports or personal banknote data.
-
-Contributions to the original project code are provided under the [MIT license](LICENSE). Third-party assets retain their upstream licenses. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Never commit secrets, browser exports or personal banknote data. Contributions
+use the [MIT license](LICENSE); please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
