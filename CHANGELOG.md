@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-Next version: **1.1.0**. These changes are on `develop`, awaiting a production release.
+## [1.1.0] - 2026-11-07
 
 - Added a separate development preview so changes can be tested before release.
 - Added About & privacy with author credit, password/session details and backend links.
