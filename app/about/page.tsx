@@ -15,7 +15,7 @@ export default function About() {
 
     <section aria-labelledby="author-heading">
       <h2 id="author-heading">Who maintains it</h2>
-      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-web" target="_blank" rel="noopener noreferrer">JnKamas/ebt-web on GitHub</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is a community project, independently operated and not the official EuroBillTracker application.</p>
+      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">JnKamas/ebt-scanner on GitHub</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is a community project, independently operated and not the official EuroBillTracker application.</p>
     </section>
 
     <section aria-labelledby="scan-privacy-heading">
@@ -42,13 +42,13 @@ export default function About() {
 
     <section aria-labelledby="source-heading">
       <h2 id="source-heading">Source code and review status</h2>
-      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-web" target="_blank" rel="noopener noreferrer">JnKamas/ebt-web</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
+      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">JnKamas/ebt-scanner</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
       <ul className="source-links">
-        <li><a href="https://github.com/JnKamas/ebt-web/blob/main/app/api/ebt/login/route.ts" target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-web/blob/main/app/api/ebt/shared.ts" target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-web/tree/main/app/api/ebt" target="_blank" rel="noopener noreferrer">Backend routes, including submission and logout</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-web/blob/main/REVIEW.md" target="_blank" rel="noopener noreferrer">Internal review, tests and known limitations</a></li>
-        <li><a href="https://github.com/JnKamas/ebt-web/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
+        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/login/route.ts" target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
+        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/shared.ts" target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
+        <li><a href="https://github.com/JnKamas/ebt-scanner/tree/main/app/api/ebt" target="_blank" rel="noopener noreferrer">Backend routes, including submission and logout</a></li>
+        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/REVIEW.md" target="_blank" rel="noopener noreferrer">Internal review, tests and known limitations</a></li>
+        <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
       </ul>
       <p>The project has automated tests and an internal code review. These are not an independent security audit. No independent audit is published here, and this explanation is not proof of how a deployed server is configured.</p>
       <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused. You can prepare notes locally and use the official <a href="https://www.eurobilltracker.com/" target="_blank" rel="noopener noreferrer">EuroBillTracker website</a> to enter them.</p>

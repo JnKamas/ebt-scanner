@@ -5,7 +5,7 @@
 - Test with an ordinary laptop webcam first; keep the layout responsive for later
   iPhone work. Local development normally uses http://localhost:3001.
 - Work on `develop` or a feature branch targeting it. Commit and push completed
-  work to `JnKamas/ebt-web` unless asked to keep it local. Merge into `main` only
+  work to `JnKamas/ebt-scanner` unless asked to keep it local. Merge into `main` only
   after the user approves a production release at https://ebt.eurocoins.cc.
 - This is an independent Next.js PWA inspired by EBT.art's fast entry workflow.
 - Public source is for transparency. Do not add contribution guides, recruitment

@@ -4,6 +4,8 @@
 
 Next version: **1.2.0**. Security improvements are being tested on develop.
 
+- Renamed the GitHub repository to JnKamas/ebt-scanner and updated source links.
+
 - Added a Vercel preview login limit of 10 requests per IP per 10 minutes.
 - Restrict page scripts with fresh nonces and limit external connections.
 - Keep SDK/OpenCV loading in an isolated local OCR worker, preserving a strict page policy.
@@ -29,5 +31,5 @@ Relabeled from v0.1.0 without changing the deployed code; the original package m
 - EBT sign-in, batch submission, receipts, profile statistics and hit journeys.
 - Session-only sign-in by default, with optional remember-me for up to six months.
 
-[Full commit history](https://github.com/JnKamas/ebt-web/commits/develop/) ·
-[GitHub Releases](https://github.com/JnKamas/ebt-web/releases)
+[Full commit history](https://github.com/JnKamas/ebt-scanner/commits/develop/) ·
+[GitHub Releases](https://github.com/JnKamas/ebt-scanner/releases)

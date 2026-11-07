@@ -6,10 +6,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JnKamas/ebt-web.git"
+    "url": "https://github.com/JnKamas/ebt-scanner.git"
   },
   "bugs": {
-    "url": "https://github.com/JnKamas/ebt-web/issues"
+    "url": "https://github.com/JnKamas/ebt-scanner/issues"
   },
   "scripts": {
     "dev": "next dev --webpack",

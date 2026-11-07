@@ -2,7 +2,7 @@
 
 ## Report a problem
 
-Use GitHub's [private vulnerability report](https://github.com/JnKamas/ebt-web/security/advisories/new)
+Use GitHub's [private vulnerability report](https://github.com/JnKamas/ebt-scanner/security/advisories/new)
 if available. Otherwise, open an issue titled **Request for private security contact**
 without sharing the vulnerability itself.
 

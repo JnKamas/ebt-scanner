@@ -21,7 +21,7 @@ test('About can be shared directly and fits a narrow screen', async ({ page }) =
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/about');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'JnKamas/ebt-web on GitHub' })).toHaveAttribute('href', 'https://github.com/JnKamas/ebt-web');
+  await expect(page.getByRole('link', { name: 'JnKamas/ebt-scanner on GitHub' })).toHaveAttribute('href', 'https://github.com/JnKamas/ebt-scanner');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.getByRole('link', { name: 'Back to scanner' })).toHaveAttribute('href', '/');
 });

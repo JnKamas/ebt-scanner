@@ -65,7 +65,7 @@ See [Review notes](REVIEW.md) for verification steps and known limits, and
 
 ## Versions and changes
 
-Read the [changelog](CHANGELOG.md) or [GitHub Releases](https://github.com/JnKamas/ebt-web/releases)
+Read the [changelog](CHANGELOG.md) or [GitHub Releases](https://github.com/JnKamas/ebt-scanner/releases)
 to see what changed. Every change is committed to GitHub and noted in the changelog.
 Versions use `major.minor.patch`: breaking changes, features, then fixes.
 
