@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible application problem using non-sensitive data.
+description: Tell us what went wrong without sharing private data.
 body:
   - type: markdown
     attributes:
@@ -14,7 +14,7 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: Use synthetic data and explain whether the problem occurs locally or on a deployed version.
+      description: Use made-up note details and say whether this happened on the live app, a preview or a local copy.
     validations:
       required: true
   - type: input
@@ -26,5 +26,5 @@ body:
   - type: textarea
     id: evidence
     attributes:
-      label: Sanitized logs or screenshots
+      label: Logs or screenshots with private details removed
       description: Remove credentials, cookies, real serial numbers and personal information first.

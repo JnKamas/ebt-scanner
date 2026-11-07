@@ -2,19 +2,23 @@
 
 ## Workflow
 
-- Test with an ordinary laptop webcam first; keep the layout responsive for later
-  iPhone work. Local development normally uses http://localhost:3001.
+- Prioritize an ordinary laptop webcam and keep iPhone Safari working. The
+  maintainer has tested both, including real banknotes and laptop focus.
+  Local development normally uses http://localhost:3001.
 - Work on `develop` or a feature branch targeting it. Commit and push completed
   work to `JnKamas/ebt-scanner` unless asked to keep it local. Merge into `main` only
   after the user approves a production release at https://ebt.eurocoins.cc.
 - This is an independent Next.js PWA inspired by EBT.art's fast entry workflow.
 - Public source is for transparency. Do not add contribution guides, recruitment
   language or pull-request/feature-request templates unless the user asks.
+- Keep public docs short and factual. Preserve confirmed testing; do not add
+  generic launch checklists or describe completed tests as pending.
 - Track every change in GitHub commits and a short `CHANGELOG.md` entry, including
   docs and maintenance. Keep package and lockfile versions equal. Use patch bumps
   for fixes, minor bumps for features and major bumps for breaking changes.
 - Before an approved main merge, move pending changelog entries to a dated section
   matching the package version and leave an Unreleased heading for future work.
+  Update release-status wording in README, REVIEW and SECURITY at the same time.
   CI publishes the matching GitHub Release after checks pass. Never reuse or move
   a released version tag. Bump to the next version on develop after each release.
 
@@ -52,7 +56,8 @@
   run `npm.cmd run test:browser` for app behavior, API, storage or build changes.
   Browser tests use fake EBT responses and a fake camera on ports 3001 and 3002.
   Documentation-only changes need a link/diff check.
-- Keep dependency updates with the lockfile. Record bundled asset sources, hashes and licenses
+- Keep dependency updates with the lockfile. Record bundled asset sources,
+  hashes and licenses
   in `THIRD_PARTY_NOTICES.md` and `public/ocr/PROVENANCE.json`.
 - Never commit secrets, browser exports or personal banknote data.
 

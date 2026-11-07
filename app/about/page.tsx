@@ -20,7 +20,7 @@ export default function About() {
 
     <section aria-labelledby="author-heading">
       <h2 id="author-heading">Who maintains it</h2>
-      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is a community project, independently operated and not the official EuroBillTracker application.</p>
+      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is independently operated and is not the official EuroBillTracker application.</p>
     </section>
 
     <section aria-labelledby="scan-privacy-heading">
@@ -34,7 +34,9 @@ export default function About() {
       <p>Your EBT email and password travel over HTTPS to this app’s server on Vercel, which forwards them over HTTPS to <a href="https://api.eurobilltracker.com/">api.eurobilltracker.com</a>. The app’s server handles your password during that request. This is a password-based login through an independent client, not an EBT-hosted sign-in page.</p>
       <p>The application code does not save or log your password. It remains in the form’s memory while you enter it and after a failed sign-in; a successful sign-in clears the field. Your browser’s password manager may separately offer to save it.</p>
       <p>After a successful login, EBT returns a session ID. The app stores it in a Secure, HttpOnly, SameSite=Lax cookie on this site. HttpOnly prevents the app’s browser JavaScript from reading that cookie; the browser sends it to the app’s server for authenticated EBT requests.</p>
-      <p>By default, the cookie has no persistent expiry. Browser session restoration may retain session cookies. The unchecked “Remember me for up to 30 days” option adds a 30-day lifetime. EBT can expire the session sooner. Sign out requests EBT logout and checks that the old session is rejected before clearing the cookie. If EBT confirmation fails, you can retry or explicitly sign out on this device only; local-only sign-out does not confirm upstream invalidation. Older remember-me cookies keep their original lifetime until you sign out and sign in again.</p>
+      <p>By default the app uses a session cookie, with no fixed time limit set by the app. It normally disappears when the browser session ends, but browsers can restore it after restarting. Use Sign out rather than relying on closing the browser.</p>
+      <p>The optional “Remember me for up to 30 days” cookie expires after 30 days. EBT can end the login sooner. Older remember-me cookies keep their original expiry until you sign out and sign in again.</p>
+      <p>Sign out asks EBT to end the session and checks that the old session is rejected before removing the cookie. If that check fails, you can retry or choose to sign out on this device only. Local-only sign-out removes the cookie without confirming that EBT ended the session.</p>
       <p>While signed in, the app can retrieve your EBT profile, previous locations and comments, and note journeys, and submit batches you choose to send. Account responses and submission receipts stay in page memory; the app has no database for these records. EBT handles submitted data under its own policies.</p>
     </section>
 
@@ -47,7 +49,7 @@ export default function About() {
 
     <section aria-labelledby="source-heading">
       <h2 id="source-heading">Source code and review status</h2>
-      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
+      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Bundled dependencies and model files retain their upstream licenses. The source links below identify the version you are viewing.</p>
       <ul className="source-links">
         <li><a href={`${source}/app/api/ebt/login/route.ts`} target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
         <li><a href={`${source}/app/api/ebt/shared.ts`} target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
@@ -55,7 +57,7 @@ export default function About() {
         <li><a href={`${source}/REVIEW.md`} target="_blank" rel="noopener noreferrer">Testing notes</a></li>
         <li><a href={`${source}/SECURITY.md`} target="_blank" rel="noopener noreferrer">How to report a security concern</a></li>
       </ul>
-      <p>The project has automated tests and an internal code review. These are not an independent security audit. No independent audit is published here, and this explanation is not proof of how a deployed server is configured.</p>
+      <p>The app has automated tests; no independent security audit has been published. Public source lets you inspect the implementation, but does not independently verify the hosted service.</p>
       <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused. You can prepare notes locally and use the official <a href="https://www.eurobilltracker.com/" target="_blank" rel="noopener noreferrer">EuroBillTracker website</a> to enter them.</p>
     </section>
   </main>;

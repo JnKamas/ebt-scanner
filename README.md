@@ -27,6 +27,9 @@ have been tested by the maintainer. The app requires an internet connection.
 
 ## Your data
 
+These details describe the code on this branch. The live app follows `main`;
+`develop` contains changes awaiting release.
+
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
 comments and the queue stay in this browser. Scanning does not require sign-in.
 
@@ -53,7 +56,7 @@ In PowerShell, use `npm.cmd` if `npm` is blocked.
 
 ## Development and deployment
 
-Vercel project: `ebt-web`.
+Vercel project: `ebt-web` (the internal hosting name).
 
 - `develop`: changes and preview testing.
 - `main`: production at https://ebt.eurocoins.cc, released after approval.
@@ -61,7 +64,7 @@ Vercel project: `ebt-web`.
 Preview and production have separate browser storage. Both use the real EBT API,
 so submitting from a preview still enters real notes.
 
-See [Review notes](REVIEW.md) for verification steps and known limits, and
+See [Testing](REVIEW.md) for completed checks and how to run them, and
 [Security](SECURITY.md) for private reports.
 
 ## Versions and changes

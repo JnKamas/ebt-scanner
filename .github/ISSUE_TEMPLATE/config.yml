@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Security vulnerability
-    url: https://github.com/JnKamas/ebt-scanner/blob/main/SECURITY.md
-    about: Follow the private reporting instructions; do not post sensitive details in a public issue.
+  - name: Request private security contact
+    url: https://github.com/JnKamas/ebt-scanner/issues/new?title=Request%20for%20private%20security%20contact
+    about: Ask for a private channel. Do not post vulnerability details in the issue.

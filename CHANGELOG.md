@@ -1,8 +1,12 @@
 # Changelog
 
+Older entries describe those versions, including features since changed or removed.
+
 ## [Unreleased]
 
 Next version: **1.2.0**. Security improvements are being tested on develop.
+
+- Checked the public docs against the code and hosting settings; clarified preview versus production, session-cookie behavior and the security contact route.
 
 - Removed offline app caching; EBT Scanner requires an internet connection.
 - Updated the testing notes to reflect completed hands-on banknote, laptop and iPhone Safari tests.
