@@ -66,7 +66,7 @@ Vercel project: `ebt-web` (the internal hosting name).
 Preview and production have separate browser storage. Both use the real EBT API,
 so submitting from a preview still enters real notes.
 
-See [Testing](REVIEW.md) for completed checks and how to run them, and
+See [Testing](REVIEW.md) for completed checks, and
 [Security](SECURITY.md) for private reports.
 
 ## Versions and changes

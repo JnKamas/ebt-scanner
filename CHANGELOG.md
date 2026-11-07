@@ -4,6 +4,10 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.2.1**.
+
+- Corrected the README description of the testing notes.
+
 ## [1.2.0] - 2026-11-07
 
 - Limited login attempts to 10 per IP per 10 minutes in each Vercel region, on production and previews.
