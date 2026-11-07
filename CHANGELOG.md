@@ -6,6 +6,8 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.2.0**. Security improvements are being tested on develop.
 
+- Trimmed the testing notes to the completed manual checks and automated-test summary.
+
 - Removed the Testing notes link and the alternative-entry sentence from About & privacy.
 
 - Checked the public docs against the code and hosting settings; clarified preview versus production, session-cookie behavior and the security contact route.
