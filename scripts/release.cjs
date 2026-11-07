@@ -5,7 +5,7 @@ const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 function releaseInfo(pkg, lock, changelog, publishing = false) {
   const version = pkg.version;
-  if (!stableVersion.test(version)) throw new Error('Use a version such as 0.2.0 in package.json.');
+  if (!stableVersion.test(version)) throw new Error('Use a version such as 1.1.0 in package.json.');
   if (lock.version !== version || lock.packages?.['']?.version !== version) {
     throw new Error('package.json and package-lock.json versions must match.');
   }

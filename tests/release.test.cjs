@@ -1,22 +1,22 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { releaseInfo, checkChangedFiles, publish } = require('../scripts/release.cjs');
-const pkg = { version: '0.2.0' };
-const lock = { version: '0.2.0', packages: { '': { version: '0.2.0' } } };
-const changelog = '# Changelog\n\n## [Unreleased]\n\n## [0.2.0] - 2026-11-07\n\n- Privacy information.\n\n## [0.1.0] - 2026-11-06\n\n- Initial app.\n';
+const pkg = { version: '1.1.0' };
+const lock = { version: '1.1.0', packages: { '': { version: '1.1.0' } } };
+const changelog = '# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-11-07\n\n- Privacy information.\n\n## [1.0.0] - 2026-11-06\n\n- Initial app.\n';
 const sha = 'a'.repeat(40);
 
 test('release notes come from the matching version; development may remain unreleased', () => {
-  assert.deepEqual(releaseInfo(pkg, lock, changelog, true), { version: '0.2.0', tag: 'v0.2.0', notes: '- Privacy information.' });
-  assert.equal(releaseInfo(pkg, lock, '## [Unreleased]\n\n- Work in progress.').version, '0.2.0');
+  assert.deepEqual(releaseInfo(pkg, lock, changelog, true), { version: '1.1.0', tag: 'v1.1.0', notes: '- Privacy information.' });
+  assert.equal(releaseInfo(pkg, lock, '## [Unreleased]\n\n- Work in progress.').version, '1.1.0');
   assert.throws(() => releaseInfo(pkg, lock, '## [Unreleased]\n', true), /dated release notes/);
   assert.throws(() => releaseInfo(pkg, lock, changelog.replace(' - 2026-11-07', ''), true), /Date the release/);
   assert.throws(() => releaseInfo(pkg, lock, changelog.replace('## [Unreleased]', '## [Unreleased]\n\n- Pending change.'), true), /Move all Unreleased/);
 });
 
 test('version mismatches, invalid versions and missing changelog updates fail checks', () => {
-  assert.throws(() => releaseInfo(pkg, { ...lock, version: '0.1.0' }, changelog), /must match/);
-  assert.throws(() => releaseInfo(pkg, { ...lock, packages: { '': { version: '0.1.0' } } }, changelog), /must match/);
+  assert.throws(() => releaseInfo(pkg, { ...lock, version: '1.0.0' }, changelog), /must match/);
+  assert.throws(() => releaseInfo(pkg, { ...lock, packages: { '': { version: '1.0.0' } } }, changelog), /must match/);
   assert.throws(() => releaseInfo({ version: '01.2.0' }, lock, changelog), /Use a version/);
   assert.throws(() => releaseInfo(pkg, lock, ''), /Unreleased/);
   assert.throws(() => checkChangedFiles(['README.md']), /CHANGELOG/);
