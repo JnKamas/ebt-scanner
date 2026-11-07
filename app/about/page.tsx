@@ -21,6 +21,7 @@ export default function About() {
     <section aria-labelledby="author-heading">
       <h2 id="author-heading">Who maintains it</h2>
       <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is independently operated and is not the official EuroBillTracker application.</p>
+      <p>Contact: <a href="mailto:support@eurocoins.cc">support@eurocoins.cc</a></p>
     </section>
 
     <section aria-labelledby="scan-privacy-heading">

@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Request private security contact
-    url: https://github.com/JnKamas/ebt-scanner/issues/new?title=Request%20for%20private%20security%20contact
-    about: Ask for a private channel. Do not post vulnerability details in the issue.
+  - name: Report a security problem
+    url: https://github.com/JnKamas/ebt-scanner/blob/develop/SECURITY.md#report-a-problem
+    about: Email support@eurocoins.cc privately. Do not post vulnerability details in an issue.

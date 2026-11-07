@@ -6,6 +6,8 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.2.0**. Security improvements are being tested on develop.
 
+- Added support@eurocoins.cc as the public contact and private security-reporting address.
+
 - Trimmed the testing notes to the completed manual checks and automated-test summary.
 
 - Removed the Testing notes link and the alternative-entry sentence from About & privacy.

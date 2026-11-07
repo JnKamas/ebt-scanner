@@ -2,10 +2,8 @@
 
 ## Report a problem
 
-GitHub private vulnerability reporting is currently disabled for this repository.
-Open an [issue requesting private contact](https://github.com/JnKamas/ebt-scanner/issues/new?title=Request%20for%20private%20security%20contact)
-without sharing the vulnerability itself. Wait for a private channel before
-sending the details.
+Email [support@eurocoins.cc](mailto:support@eurocoins.cc) to report a security
+problem privately. Do not post vulnerability details in public issues.
 
 Include the affected version, browser, impact and steps to reproduce using fake
 data. Remove secrets and personal details from screenshots and logs. Do not test

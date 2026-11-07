@@ -9,6 +9,8 @@ requested.
 
 **[Open EBT Scanner](https://ebt.eurocoins.cc)**
 
+Contact: [support@eurocoins.cc](mailto:support@eurocoins.cc)
+
 ## Using it
 
 1. Choose a denomination and scan the printer code.
