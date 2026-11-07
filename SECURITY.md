@@ -14,8 +14,7 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
 
 - The app server forwards login credentials to EBT over HTTPS without saving them.
   A Secure, HttpOnly, SameSite=Lax cookie holds the session. New remember-me
-  cookies in the 1.2.0 preview are optional and limited to 30 days. Production
-  1.1.0 still allows up to six months. Existing cookies keep their original
+  cookies are optional and limited to 30 days. Older cookies keep their original
   expiry until sign-out and a new login.
 - Drafts and queued notes live in browser local storage. Anyone with access to
   that browser profile may be able to read them.

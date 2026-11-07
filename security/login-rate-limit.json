@@ -3,17 +3,38 @@
   "ruleId": "rule_ebt_login_throttle_preview_MUoFER",
   "verifiedAt": "2026-11-07",
   "rule": {
-    "name": "EBT login throttle (preview)",
-    "description": "Preview: at most 10 POST login requests per IP per 10 minutes; return 429.",
+    "name": "EBT login throttle",
+    "description": "10 POST login requests per IP per 10-minute fixed window in each Vercel region; return 429.",
     "active": true,
-    "conditionGroup": [{ "conditions": [
-      { "type": "path", "op": "eq", "value": "/api/ebt/login" },
-      { "type": "method", "op": "eq", "value": "POST" },
-      { "type": "environment", "op": "eq", "value": "preview" }
-    ] }],
-    "action": { "mitigate": {
-      "action": "rate_limit",
-      "rateLimit": { "algo": "fixed_window", "window": 600, "limit": 10, "keys": ["ip"], "action": "rate_limit" }
-    } }
+    "conditionGroup": [
+      {
+        "conditions": [
+          {
+            "type": "path",
+            "op": "eq",
+            "value": "/api/ebt/login"
+          },
+          {
+            "type": "method",
+            "op": "eq",
+            "value": "POST"
+          }
+        ]
+      }
+    ],
+    "action": {
+      "mitigate": {
+        "action": "rate_limit",
+        "rateLimit": {
+          "algo": "fixed_window",
+          "window": 600,
+          "limit": 10,
+          "keys": [
+            "ip"
+          ],
+          "action": "rate_limit"
+        }
+      }
+    }
   }
 }

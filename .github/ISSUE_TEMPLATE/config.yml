@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Report a security problem
-    url: https://github.com/JnKamas/ebt-scanner/blob/develop/SECURITY.md#report-a-problem
+    url: https://github.com/JnKamas/ebt-scanner/blob/main/SECURITY.md#report-a-problem
     about: Email support@eurocoins.cc privately. Do not post vulnerability details in an issue.

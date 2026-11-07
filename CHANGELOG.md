@@ -4,28 +4,16 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.2.0**. Security improvements are being tested on develop.
+## [1.2.0] - 2026-11-07
 
+- Limited login attempts to 10 per IP per 10 minutes in each Vercel region, on production and previews.
+- Restricted page scripts and kept local PaddleOCR processing in an isolated worker.
+- Reduced optional remember-me cookies to 30 days. Default sign-in still uses a session cookie.
+- Added EBT session checks on logout, with retry and explicit local-only sign-out when EBT cannot confirm it.
 - Added support@eurocoins.cc as the public contact and private security-reporting address.
-
-- Trimmed the testing notes to the completed manual checks and automated-test summary.
-
-- Removed the Testing notes link and the alternative-entry sentence from About & privacy.
-
-- Checked the public docs against the code and hosting settings; clarified preview versus production, session-cookie behavior and the security contact route.
-
-- Removed offline app caching; EBT Scanner requires an internet connection.
-- Updated the testing notes to reflect completed hands-on banknote, laptop and iPhone Safari tests.
-- About & privacy now links to the deployed version's source, so previews do not show outdated main-branch code.
-
-- Renamed the GitHub repository to JnKamas/ebt-scanner and updated source links.
-- Simplified repository link labels in About & privacy to GITHUB.
-
-- Added a Vercel preview login limit of 10 requests per IP per 10 minutes.
-- Restrict page scripts with fresh nonces and limit external connections.
-- Keep SDK/OpenCV loading in an isolated local OCR worker, preserving a strict page policy.
-- Reduced optional remember-me from six months to 30 days.
-- Verify EBT session invalidation on logout; offer retry or explicit local-only sign-out when confirmation fails.
+- Renamed the repository to JnKamas/ebt-scanner and simplified the public documentation.
+- Updated About & privacy, including links to the source for the version being viewed.
+- Removed offline app caching. Internet access is required; saved drafts and queued notes are preserved.
 
 ## [1.1.0] - 2026-11-07
 
