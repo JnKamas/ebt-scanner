@@ -8,6 +8,8 @@
   work to `JnKamas/ebt-web` unless asked to keep it local. Merge into `main` only
   after the user approves a production release at https://ebt.eurocoins.cc.
 - This is an independent Next.js PWA inspired by EBT.art's fast entry workflow.
+- Public source is for transparency. Do not add contribution guides, recruitment
+  language or pull-request/feature-request templates unless the user asks.
 
 ## Scanner
 
@@ -39,7 +41,14 @@
   `.\node_modules\.bin\next.cmd build` does not generate it.
 - Never register the service worker in local development or cache development
   CSS/JS. Keep authenticated API and RSC responses out of offline caches.
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and asset provenance rules.
+- Run `npm.cmd test` and the TypeScript check for code changes; also build and
+  run `npm.cmd run test:browser` for app behavior, API, storage or build changes.
+  Browser tests use fake EBT responses and a fake camera on ports 3001 and 3002.
+  Documentation-only changes need a link/diff check.
+- Edit `scripts/service-worker.js`, not generated `public/sw.js`. Keep dependency
+  updates with the lockfile. Record bundled asset sources, hashes and licenses
+  in `THIRD_PARTY_NOTICES.md` and `public/ocr/PROVENANCE.json`.
+- Never commit secrets, browser exports or personal banknote data.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

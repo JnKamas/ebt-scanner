@@ -1,7 +1,11 @@
 # EBT Scanner
 
 Scan euro banknotes, check their codes and prepare EuroBillTracker entries.
-Created and maintained by **Labrador10**. This is an independent community app.
+Created and maintained by **Labrador10**. This is an independent app.
+
+The source is public so you can inspect how the app works and handles your data.
+The repository is shared for transparency; outside contributions are not being
+requested.
 
 **[Open EBT Scanner](https://ebt.eurocoins.cc)**
 
@@ -48,7 +52,7 @@ In PowerShell, use `npm.cmd` if `npm` is blocked.
 
 ## Development and deployment
 
-Vercel project: `ebt-web`. Import this repository to deploy your own copy.
+Vercel project: `ebt-web`.
 
 - `develop`: changes and preview testing.
 - `main`: production at https://ebt.eurocoins.cc, released after approval.
@@ -56,11 +60,10 @@ Vercel project: `ebt-web`. Import this repository to deploy your own copy.
 Preview and production have separate browser storage. Both use the real EBT API,
 so submitting from a preview still enters real notes.
 
-See [Contributing](CONTRIBUTING.md) for checks and development guidance,
-[Review notes](REVIEW.md) for known limits, and [Security](SECURITY.md) for private reports.
+See [Review notes](REVIEW.md) for verification steps and known limits, and
+[Security](SECURITY.md) for private reports.
 
 ## License
 
 Original code is [MIT licensed](LICENSE). Dependencies, OCR models and flags
 keep their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md).
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md).

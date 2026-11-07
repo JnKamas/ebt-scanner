@@ -37,5 +37,20 @@ have recorded sources, licenses and SHA-256 hashes in
 - The content security policy restricts embedding and objects, but does not use
   a nonce-based script policy.
 
-For commands, see [Contributing](CONTRIBUTING.md#checks). For private reports,
-see [Security](SECURITY.md).
+## Verify locally
+
+After the [local setup](README.md#run-locally), run:
+
+```sh
+npm test
+npx tsc --noEmit
+# Stop development servers before building.
+npm run build
+npx playwright install chromium
+npm run test:browser
+npm audit
+```
+
+Use `npm.cmd` in PowerShell if needed. Browser tests start servers on ports
+3001 and 3002 and use fake account and note data. For private reports, see
+[Security](SECURITY.md).
