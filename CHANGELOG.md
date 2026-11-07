@@ -5,6 +5,7 @@
 Next version: **1.2.0**. Security improvements are being tested on develop.
 
 - Renamed the GitHub repository to JnKamas/ebt-scanner and updated source links.
+- Simplified repository link labels in About & privacy to GITHUB.
 
 - Added a Vercel preview login limit of 10 requests per IP per 10 minutes.
 - Restrict page scripts with fresh nonces and limit external connections.

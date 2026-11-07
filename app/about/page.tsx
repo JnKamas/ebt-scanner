@@ -15,7 +15,7 @@ export default function About() {
 
     <section aria-labelledby="author-heading">
       <h2 id="author-heading">Who maintains it</h2>
-      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">JnKamas/ebt-scanner on GitHub</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is a community project, independently operated and not the official EuroBillTracker application.</p>
+      <p>Created and maintained by <strong>Labrador10</strong>, with the project repository at <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Hosted on Vercel at <a href="https://ebt.eurocoins.cc">ebt.eurocoins.cc</a>. It is a community project, independently operated and not the official EuroBillTracker application.</p>
     </section>
 
     <section aria-labelledby="scan-privacy-heading">
@@ -42,7 +42,7 @@ export default function About() {
 
     <section aria-labelledby="source-heading">
       <h2 id="source-heading">Source code and review status</h2>
-      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">JnKamas/ebt-scanner</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
+      <p>The frontend and backend source are public under the MIT license in <a href="https://github.com/JnKamas/ebt-scanner" target="_blank" rel="noopener noreferrer">GITHUB</a>. Bundled dependencies and model files retain their upstream licenses. Production uses the main branch; development previews use develop.</p>
       <ul className="source-links">
         <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/login/route.ts" target="_blank" rel="noopener noreferrer">Login route: how credentials are forwarded</a></li>
         <li><a href="https://github.com/JnKamas/ebt-scanner/blob/main/app/api/ebt/shared.ts" target="_blank" rel="noopener noreferrer">EBT transport and session cookie settings</a></li>
