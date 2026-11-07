@@ -10,6 +10,13 @@
 - This is an independent Next.js PWA inspired by EBT.art's fast entry workflow.
 - Public source is for transparency. Do not add contribution guides, recruitment
   language or pull-request/feature-request templates unless the user asks.
+- Track every change in GitHub commits and a short `CHANGELOG.md` entry, including
+  docs and maintenance. Keep package and lockfile versions equal. Use patch bumps
+  for fixes, minor bumps for features and major bumps for breaking changes.
+- Before an approved main merge, move pending changelog entries to a dated section
+  matching the package version and leave an Unreleased heading for future work.
+  CI publishes the matching GitHub Release after checks pass. Never reuse or move
+  a released version tag. Bump to the next version on develop after each release.
 
 ## Scanner
 
