@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson, sessionKey } from "../shared";
 import { EbtAccount, publicAccount } from "../../../lib/ebt";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       return clearSession(noStoreJson({ account: null }));
     }
     const account = result as unknown as EbtAccount;
-    return noStoreJson({ account: publicAccount(account) });
+    return noStoreJson({ account: publicAccount(account), sessionKey: sessionKey(session) });
   } catch {
     return noStoreJson({ error: "Could not check your EBT session." }, { status: 502 });
   }

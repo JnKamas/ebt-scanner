@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson, sessionKey } from "../shared";
 import { mutationError, readJsonObject } from "../request-security";
 import { Draft, isDraft, isSerialFormatValid, noteErrors, printerCodePattern } from "../../../lib/note-validation";
 import { maxSubmissionBatch, sameLocation } from "../../../lib/note-queue";
@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
   const location = notes[0];
   if (!notes.every((note) => sameLocation(note, location))) {
     return noStoreJson({ error: "EBT accepts one location per batch. Submit notes from each location separately." }, { status: 400 });
+  }
+
+  if (request.headers.get("X-EBT-Session") !== sessionKey(session)) {
+    return noStoreJson({ error: "Your sign-in changed in another tab. Reload, review the signed-in account, and submit again.", code: "session_changed" }, { status: 409 });
   }
 
   const parameters: Record<string, string> = { m: "insertbills", v: "1", PHPSESSID: session, city: location.city, zip: location.postalCode, country: location.country };

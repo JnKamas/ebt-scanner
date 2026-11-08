@@ -39,3 +39,25 @@ test('storage exceptions are surfaced instead of silently claiming a saved queue
   assert.match(writeLocalState(blocked, [note], draft), /could not be saved/i);
   assert.match(writePendingSubmission(blocked, ['one']), /cannot save submission status/i);
 });
+
+test('a stale tab editing a draft cannot overwrite another tab queue or unrelated draft fields', () => {
+  const store = storage();
+  writeLocalState(store, [], draft);
+  const stale = readLocalState(store);
+  writeLocalState(store, [note], { ...draft, comment: 'other tab' }, stale);
+  assert.equal(writeLocalState(store, [], { ...draft, city: 'Wien' }, stale), '');
+  assert.deepEqual(readLocalState(store).notes, [note]);
+  assert.equal(readLocalState(store).draft.city, 'Wien');
+  assert.equal(readLocalState(store).draft.comment, 'other tab');
+});
+
+test('stale queue edits and deletions pause saving without overwriting newer notes', () => {
+  const store = storage();
+  writeLocalState(store, [note], draft);
+  const stale = readLocalState(store);
+  writeLocalState(store, [note, { ...note, id: 'two' }], draft);
+  for (const notes of [[], [{ ...note, comment: 'stale edit' }]]) {
+    assert.match(writeLocalState(store, notes, draft, stale), /another tab/);
+    assert.equal(readLocalState(store).notes.length, 2);
+  }
+});

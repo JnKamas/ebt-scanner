@@ -7,6 +7,8 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.2.1**.
 
 - Corrected the README description of the testing notes.
+- Prevented stale tabs from overwriting saved queues, synchronized queue and pending submission changes, and blocked concurrent submissions between tabs.
+- Bound note submissions to the sign-in shown in the tab, rejecting changed sessions before contacting EBT.
 
 ## [1.2.0] - 2026-11-07
 

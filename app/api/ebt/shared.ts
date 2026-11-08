@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+
+// Bind a displayed sign-in to its cookie without exposing the upstream token.
+export function sessionKey(session: string) {
+  return createHash("sha256").update(`ebt-scanner-session:${session}`).digest("hex");
+}
 
 export const EBT_API_URL = "https://api.eurobilltracker.com/";
 export const SESSION_COOKIE = "ebt-web-session";

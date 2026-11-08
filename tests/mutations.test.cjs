@@ -2,9 +2,10 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { NextRequest } = require('next/server');
 const load = require('./load-ts.cjs');
+const { sessionKey } = load('app/api/ebt/shared.ts');
 const note = { id: 'one', serial: 'X00000000002', printerCode: 'R001A1', denomination: '20', country: 'Slovakia', city: 'Bratislava', postalCode: '', comment: '' };
 function request(body, headers = {}) {
-  return new NextRequest('https://app.test/api/ebt/notes', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://app.test', Cookie: 'ebt-web-session=session', ...headers }, body: JSON.stringify(body) });
+  return new NextRequest('https://app.test/api/ebt/notes', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://app.test', Cookie: 'ebt-web-session=session', 'X-EBT-Session': sessionKey('session'), ...headers }, body: JSON.stringify(body) });
 }
 function api(name, respond = () => ({ note0: { status: 0, billId: 42 } })) {
   const calls = [], cookies = [];
@@ -105,7 +106,19 @@ test('login and session responses apply the same public account whitelist', asyn
     assert.equal(response.body.account.username, 'Tracker');
     assert(!JSON.stringify(response.body).includes('secret-'));
   }
-  assert.deepEqual(login.body, session.body);
+  assert.deepEqual(login.body.account, session.body.account);
+  assert.equal(login.body.sessionKey, sessionKey('secret-session'));
+  assert.equal(session.body.sessionKey, sessionKey('session'));
+});
+
+test('submission binds the displayed sign-in to the exact cookie, including account switches', async () => {
+  for (const key of ['', sessionKey('alice-session')]) {
+    const target = api('notes');
+    const response = await target.POST(request({ notes: [note] }, { Cookie: 'ebt-web-session=bob-session', 'X-EBT-Session': key }));
+    assert.equal(response.status, 409);
+    assert.equal(response.body.code, 'session_changed');
+    assert.equal(target.calls.length, 0);
+  }
 });
 
 test('cookie deletion retains the same security attributes as login', () => {

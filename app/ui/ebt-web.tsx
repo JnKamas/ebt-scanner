@@ -9,7 +9,7 @@ import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
 import { submissionBatch } from "../lib/note-queue";
 import { blankDraft, clean, denominations, isCodeValid, isSerialValid, noteErrors, Note } from "../lib/note-validation";
-import { readLocalState, writeLocalState, writePendingSubmission } from "../lib/local-state";
+import { LocalSnapshot, readLocalState, writeLocalState, writePendingSubmission } from "../lib/local-state";
 
 type Tab = "entry" | "queue" | "profile" | "settings";
 type CameraPreference = { deviceId: string };
@@ -27,8 +27,10 @@ export default function EbtScanner() {
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState("");
   const storageBlockedRef = useRef(false);
+  const savedRef = useRef<LocalSnapshot>({ notes: [], draft: blankDraft() });
   const [uncertainIds, setUncertainIds] = useState<string[]>([]);
   const [account, setAccount] = useState<EbtAccount | null>(null);
+  const [accountSessionKey, setAccountSessionKey] = useState("");
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const updateTotals = useCallback((totalbills: number, totalhits: number) => {
@@ -104,6 +106,7 @@ export default function EbtScanner() {
   useEffect(() => {
     try {
       const saved = readLocalState(window.localStorage);
+      savedRef.current = { notes: saved.notes, draft: saved.draft };
       setNotes(saved.notes);
       setUncertainIds(saved.pendingIds);
       setDraft(saved.draft);
@@ -127,9 +130,43 @@ export default function EbtScanner() {
 
   useEffect(() => {
     if (!storageReady || storageBlockedRef.current) return;
-    try { setStorageError(writeLocalState(window.localStorage, notes, draft)); }
-    catch { setStorageError("Browser storage is unavailable. Your notes cannot be saved; keep this page open."); }
+    void navigator.locks.request("ebt-web-local-state", () => {
+      if (storageBlockedRef.current) return;
+      // A newer local render or storage event can supersede a waiting save.
+      if (notes !== notesRef.current || draft !== draftRef.current) return;
+      try {
+        const error = writeLocalState(window.localStorage, notes, draft, savedRef.current);
+        if (error) storageBlockedRef.current = true;
+        else savedRef.current = { notes, draft };
+        setStorageError(error);
+      } catch { setStorageError("Browser storage is unavailable. Your notes cannot be saved; keep this page open."); }
+    });
   }, [notes, draft, storageReady]);
+
+  useEffect(() => {
+    function syncQueue(event: StorageEvent) {
+      if (event.key === "ebt-web-sign-in-change") {
+        accountRequestRef.current += 1;
+        setAccount(null);
+        setAccountSessionKey("");
+        setReceipts([]);
+        setMessages((current) => ({ ...current, queue: "Sign-in changed in another tab. Reload to review the current account before submitting.", profile: "Sign-in changed in another tab. Reload to see the current account." }));
+        return;
+      }
+      if (event.key !== "ebt-web-queue" && event.key !== "ebt-web-pending-submission" && event.key !== null) return;
+      const saved = readLocalState(window.localStorage);
+      if (saved.error) { storageBlockedRef.current = true; setStorageError(saved.error); return; }
+      setUncertainIds(saved.pendingIds);
+      if (JSON.stringify(notesRef.current) === JSON.stringify(savedRef.current.notes)) {
+        savedRef.current = { ...savedRef.current, notes: saved.notes };
+        notesRef.current = saved.notes;
+        setNotes(saved.notes);
+        setEditingNote(null);
+      }
+    }
+    window.addEventListener("storage", syncQueue);
+    return () => window.removeEventListener("storage", syncQueue);
+  }, []);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -217,7 +254,9 @@ export default function EbtScanner() {
     const request = accountRequestRef.current;
     void fetch("/api/ebt/session", { cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : null)
-      .then((data: { account?: EbtAccount | null } | null) => { if (request === accountRequestRef.current) setAccount(data?.account ?? null); })
+      .then((data: { account?: EbtAccount | null; sessionKey?: string } | null) => {
+        if (request === accountRequestRef.current) { setAccount(data?.account ?? null); setAccountSessionKey(data?.sessionKey ?? ""); }
+      })
       .catch(() => undefined);
   }, []);
 
@@ -585,9 +624,11 @@ export default function EbtScanner() {
     try {
       const response = await fetch("/api/ebt/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, rememberMe }) });
       if (response.status === 429) throw new Error("Too many sign-in attempts from this connection. Wait up to 10 minutes, then try again.");
-      const data = await response.json() as { account?: EbtAccount; error?: string };
+      const data = await response.json() as { account?: EbtAccount; sessionKey?: string; error?: string };
       if (!response.ok || !data.account) throw new Error(data.error || "Could not sign in to EBT.");
       setAccount(data.account);
+      setAccountSessionKey(data.sessionKey ?? "");
+      writePreference("ebt-web-sign-in-change", crypto.randomUUID());
       setLogoutNeedsConfirmation(false);
       applyEbtDefaults(data.account);
       setEmail("");
@@ -610,6 +651,8 @@ export default function EbtScanner() {
       if (!response.ok) throw new Error("Sign-out failed");
       const result = await response.json() as { upstreamInvalidated?: boolean; noSession?: boolean };
       setAccount(null);
+      setAccountSessionKey("");
+      writePreference("ebt-web-sign-in-change", crypto.randomUUID());
       setReceipts([]);
       setPassword("");
       setLogoutNeedsConfirmation(false);
@@ -632,14 +675,32 @@ export default function EbtScanner() {
   }
 
   async function submitQueue() {
-    if (!account || isSubmitting || editingNote || notes.length === 0 || uncertainIds.length > 0) return;
+    await navigator.locks.request("ebt-web-submission", { ifAvailable: true }, async (lock) => {
+      if (lock) await submitLockedQueue();
+      else setMessage("Another tab is submitting notes. Wait for it to finish before retrying.");
+    });
+  }
+
+  async function submitLockedQueue() {
+    if (!account || isSubmitting || editingNote || notes.length === 0 || uncertainIds.length > 0 || storageBlockedRef.current) return;
+    const latest = readLocalState(window.localStorage);
+    if (latest.error || latest.pendingIds.length || JSON.stringify(latest.notes) !== JSON.stringify(notes)) {
+      setMessage("The saved queue or submission status changed in another tab. Reload and review it before submitting.");
+      return;
+    }
     if (!savePendingSubmission(batch.map((note) => note.id))) return;
     let outcomeUnknown = true;
     setIsSubmitting(true);
     setMessage(`Sending ${batch.length} note${batch.length === 1 ? "" : "s"} to EuroBillTracker…`);
     try {
-      const response = await fetch("/api/ebt/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: batch }) });
-      const data = await response.json() as { results?: Array<{ id: string; result: SubmissionResult | null }>; error?: string; outcome?: string };
+      const response = await fetch("/api/ebt/notes", { method: "POST", headers: { "Content-Type": "application/json", "X-EBT-Session": accountSessionKey }, body: JSON.stringify({ notes: batch }) });
+      const data = await response.json() as { results?: Array<{ id: string; result: SubmissionResult | null }>; error?: string; outcome?: string; code?: string };
+      if (data.code === "session_changed" || response.status === 401) {
+        accountRequestRef.current += 1;
+        setAccount(null);
+        setAccountSessionKey("");
+        setReceipts([]);
+      }
       if (!response.ok || !data.results) {
         outcomeUnknown = data.outcome === "unknown";
         throw new Error(data.error || "EBT did not confirm the submission. Check EBT before retrying.");
@@ -653,7 +714,11 @@ export default function EbtScanner() {
         setNotes(remaining);
         // Save confirmed removals before clearing the pending marker. A reload
         // must never restore accepted notes as safe to send again.
-        const saveError = writeLocalState(window.localStorage, remaining, draftRef.current);
+        const saveError = await navigator.locks.request("ebt-web-local-state", () => {
+          const error = writeLocalState(window.localStorage, remaining, draftRef.current, savedRef.current);
+          if (!error) savedRef.current = { notes: remaining, draft: draftRef.current };
+          return error;
+        });
         if (saveError) { outcomeUnknown = true; setStorageError(saveError); }
       }
       const failed = batch.length - successful.length;
@@ -661,7 +726,9 @@ export default function EbtScanner() {
       // Refresh totals independently; a failed refresh must never undo a submission.
       const accountRequest = accountRequestRef.current;
       void fetch("/api/ebt/session", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null)
-        .then((session) => { if (session?.account && accountRequest === accountRequestRef.current) setAccount(session.account); }).catch(() => undefined);
+        .then((session) => {
+          if (session?.account && accountRequest === accountRequestRef.current && (session.sessionKey ?? "") === accountSessionKey) setAccount(session.account);
+        }).catch(() => undefined);
     } catch (error) {
       // A dropped browser response can follow a successful upstream insertion.
       setMessage(outcomeUnknown ? "Submission outcome unknown. EBT may have received the notes. Check EBT before retrying; notes remain queued." : error instanceof Error ? error.message : "Could not submit the notes.");
