@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import AppFooter from "../ui/app-footer";
+import AppInformation from "../ui/app-information";
 import packageInfo from "../../package.json";
 
 const repository = "https://github.com/JnKamas/ebt-scanner";
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function About() {
   return <main className="shell about-page">
-    <Link href="/" className="about-back">← Back to scanner</Link>
+    <div className="about-header"><Link href="/" className="about-back">← Back to scanner</Link><AppInformation version={packageInfo.version} showAbout={false} /></div>
     <p className="eyebrow">ABOUT & PRIVACY</p>
     <h1>Who runs EBT Scanner, and where your data goes.</h1>
     <p className="about-intro">An independent EuroBillTracker client for scanning banknotes and preparing entries. You can scan, edit and queue notes without signing in. An internet connection is required.</p>
@@ -62,6 +62,5 @@ export default function About() {
       <p>The app has automated tests; no independent security audit has been published. Public source lets you inspect the implementation, but does not independently verify the hosted service.</p>
       <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused.</p>
     </section>
-    <AppFooter version={packageInfo.version} showAbout={false} />
   </main>;
 }

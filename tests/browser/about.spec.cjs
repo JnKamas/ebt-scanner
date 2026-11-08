@@ -2,32 +2,31 @@ const { test, expect } = require('@playwright/test');
 const { setup } = require('./fixtures.cjs');
 const { version } = require('../../package.json');
 
-test('the version footer stays accessible on every tab and Settings explains local preferences', async ({ page, context }) => {
+test('version and privacy remain in the header on every tab and Settings explains local preferences', async ({ page, context }) => {
   await setup(page);
-  await page.setViewportSize({ width: 375, height: 812 });
+  await page.setViewportSize({ width: 320, height: 812 });
   await page.goto('/');
-  const footer = page.locator('.app-footer');
+  const information = page.locator('.topbar .app-information');
   for (const tab of ['Entry', /^Queue/, 'Profile', 'Settings']) {
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: tab, exact: true }).click();
-    await expect(footer.locator('.app-version')).toHaveText(`v${version}`);
-    // The fixed navigation can cover an element scrolled to the viewport edge.
-    // At the page bottom the shell's reserved space must keep the footer clear.
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    expect(await footer.evaluate(element => element.getBoundingClientRect().bottom <= document.querySelector('.bottom-nav').getBoundingClientRect().top)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(information.locator('.app-version')).toHaveText(`v${version}`);
+    await expect(information.getByRole('link', { name: 'About & privacy', exact: true })).toBeInViewport();
+    await expect(page.locator('footer')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (tab === 'Entry') await page.screenshot({ path: 'test-results/entry-footer-mobile.png', fullPage: true });
+    if (tab === 'Entry') await page.screenshot({ path: 'test-results/entry-header-mobile.png', fullPage: true });
   }
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await expect(page.locator('.settings-panel')).toContainText('Settings are saved in this browser on this device and are not tied to your EuroBillTracker profile.');
   await expect(page.locator('.settings-panel .privacy-summary')).toHaveCount(0);
   await expect(page.getByText('Your queue and location stay in this browser.', { exact: false })).toHaveCount(0);
   const popupReady = context.waitForEvent('page');
-  await footer.getByRole('link', { name: 'About & privacy', exact: true }).click();
+  await information.getByRole('link', { name: 'About & privacy', exact: true }).click();
   const about = await popupReady;
   await expect(about).toHaveURL(/\/about$/);
   await expect(about.locator('.app-version')).toHaveText(`v${version}`);
   expect(await page.evaluate(() => window.cameraRequests)).toBe(0);
-  await page.screenshot({ path: 'test-results/settings-footer-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/settings-header-mobile.png', fullPage: true });
 });
 
 test('privacy is available before sign-in without losing an unfinished entry', async ({ page, context }) => {
