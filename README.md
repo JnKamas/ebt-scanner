@@ -29,8 +29,8 @@ have been tested by the maintainer. The app requires an internet connection.
 
 ## Your data
 
-These details describe the code on this branch. The live app follows `main`;
-`develop` contains changes awaiting release.
+Version **1.2.1** is the release on `main`; `develop` contains upcoming changes.
+These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
 comments and the queue stay in this browser. Scanning does not require sign-in.
