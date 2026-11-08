@@ -4,6 +4,13 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-08
+
+- Prepared 1.2.2 development after the 1.2.1 release.
+- Displayed the app version alongside About & privacy in its original header position.
+- Simplified Settings and clarified that its preferences are local to the browser and device, separate from the EBT profile.
+- Updated release, testing and security notes for 1.2.2.
+
 ## [1.2.1] - 2026-11-08
 
 - Updated release, testing and security notes, including the README testing description.

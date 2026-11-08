@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AppInformation from "../ui/app-information";
+import packageInfo from "../../package.json";
 
 const repository = "https://github.com/JnKamas/ebt-scanner";
 const sourceRef = process.env.VERCEL_GIT_COMMIT_SHA?.match(/^[a-f0-9]{40}$/)?.[0]
@@ -13,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function About() {
   return <main className="shell about-page">
-    <Link href="/" className="about-back">← Back to scanner</Link>
+    <div className="about-header"><Link href="/" className="about-back">← Back to scanner</Link><AppInformation version={packageInfo.version} showAbout={false} /></div>
     <p className="eyebrow">ABOUT & PRIVACY</p>
     <h1>Who runs EBT Scanner, and where your data goes.</h1>
     <p className="about-intro">An independent EuroBillTracker client for scanning banknotes and preparing entries. You can scan, edit and queue notes without signing in. An internet connection is required.</p>

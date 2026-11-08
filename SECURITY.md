@@ -24,6 +24,6 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
   sent to the browser. Missing keys block sign-in and submission. Rotating the
   key requires open tabs to reload; it does not revoke EBT sessions.
 
-Production fixes are released through `main`. This volunteer project cannot promise
+Production release **1.2.2** is on `main`. This volunteer project cannot promise
 response times. Tests are not an independent security audit; see
 [Testing](REVIEW.md) for the checks performed.
