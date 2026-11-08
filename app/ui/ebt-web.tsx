@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import AppFooter from "./app-footer";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
 import { EbtAccount, Receipt, SubmissionResult } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
@@ -18,7 +19,7 @@ type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 type OcrStatus = "loading" | "ready" | "error";
 
-export default function EbtScanner() {
+export default function EbtScanner({ version }: { version: string }) {
   const [tab, setTab] = useState<Tab>("entry");
   const [logoutNeedsConfirmation, setLogoutNeedsConfirmation] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
@@ -738,10 +739,9 @@ export default function EbtScanner() {
     }
   }
 
-  return <main className="shell">
+  return <main className="shell scanner-shell">
     <header className="topbar">
       <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Scanner</b></span></div>
-      <Link className="about-link" href="/about" target="_blank" rel="noopener noreferrer">About & privacy</Link>
     </header>
 
     {storageError && <p className="notice" role="alert">{storageError}</p>}
@@ -825,7 +825,7 @@ export default function EbtScanner() {
 
     {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={() => void logout()} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button>{logoutNeedsConfirmation && <button type="button" onClick={() => void logout(true)} disabled={isLoggingOut}>Sign out on this device only</button>}</div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><label className="remember-me"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} aria-describedby="remember-me-help" /><span>Remember me for up to 30 days</span></label><small id="remember-me-help">Checking this stores a sign-in cookie on this device for up to 30 days. EBT may ask you to sign in sooner.</small><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><aside className="privacy-summary" aria-label="Sign-in privacy"><p>Sign-in sends your EBT email and password through the app server on Vercel to EBT over HTTPS. The app does not save your password. An EBT session cookie keeps you signed in.</p><Link href="/about" target="_blank" rel="noopener noreferrer">Who maintains this app, password handling &amp; source status</Link></aside></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
-    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Your data and settings.</h2><aside className="privacy-summary"><Link href="/about" target="_blank" rel="noopener noreferrer">About the maintainer, privacy &amp; source status</Link></aside><p>Your queue and location stay in this browser. Sign-in sends your password over HTTPS through this app’s server to EuroBillTracker. The app never saves your password.</p><p>Your settings are saved only in this browser on this device and are removed when you clear this site's data.</p><div className="scan-settings">
+    {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Settings</h2><p>Settings are saved in this browser on this device and are not tied to your EuroBillTracker profile.</p><div className="scan-settings">
         <h3>Scanning cameras</h3>
         <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
         <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
@@ -840,6 +840,8 @@ export default function EbtScanner() {
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
         <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+
+    <AppFooter version={version} />
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AppFooter from "../ui/app-footer";
+import packageInfo from "../../package.json";
 
 const repository = "https://github.com/JnKamas/ebt-scanner";
 const sourceRef = process.env.VERCEL_GIT_COMMIT_SHA?.match(/^[a-f0-9]{40}$/)?.[0]
@@ -60,5 +62,6 @@ export default function About() {
       <p>The app has automated tests; no independent security audit has been published. Public source lets you inspect the implementation, but does not independently verify the hosted service.</p>
       <p>If you prefer to evaluate the scanner before trusting it with your EBT account, leave sign-in unused.</p>
     </section>
+    <AppFooter version={packageInfo.version} showAbout={false} />
   </main>;
 }

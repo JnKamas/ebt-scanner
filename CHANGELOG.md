@@ -7,6 +7,8 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.2.2**.
 
 - Prepared 1.2.2 development after the 1.2.1 release.
+- Added a footer showing the app version and linking to About & privacy.
+- Simplified Settings and clarified that its preferences are local to the browser and device, separate from the EBT profile.
 
 ## [1.2.1] - 2026-11-08
 
