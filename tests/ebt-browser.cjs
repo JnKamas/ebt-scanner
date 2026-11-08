@@ -110,6 +110,11 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: 'Save changes' }).click();
     assert.equal(await page.locator('.queue-editor').count(), 0);
     assert.match(await page.locator('.note-list').innerText(), /Germany/);
+    // Cross-tab saves wait for the shared storage lock after the UI updates.
+    await page.waitForFunction(() => {
+      const notes = JSON.parse(localStorage.getItem('ebt-web-queue') || '[]');
+      return notes.length === 1 && notes[0].country === 'Germany';
+    });
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('ebt-web-queue')));
     assert.equal(stored.length, 1);
     assert.equal(stored[0].country, 'Germany');

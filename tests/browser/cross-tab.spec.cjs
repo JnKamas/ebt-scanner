@@ -80,3 +80,20 @@ test('the real submission route rejects a changed cookie before contacting EBT',
   expect(response.status()).toBe(409);
   expect((await response.json()).code).toBe('session_changed');
 });
+
+test('queued edits persist after a busy cross-tab storage lock is released', async ({ page }) => {
+  await setup(page, { notes: [note] });
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await page.getByRole('button', { name: `Edit ${note.serial}` }).click();
+  await page.getByRole('textbox', { name: 'Country (English name)' }).fill('Germany');
+  await page.evaluate(() => {
+    void navigator.locks.request('ebt-web-local-state', () => new Promise(resolve => { window.releaseStorage = resolve; }));
+  });
+  await expect.poll(() => page.evaluate(() => Boolean(window.releaseStorage))).toBe(true);
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.note-list')).toContainText('Germany');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ebt-web-queue'))[0].country)).toBe(note.country);
+  await page.evaluate(() => window.releaseStorage());
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ebt-web-queue'))[0].country)).toBe('Germany');
+});

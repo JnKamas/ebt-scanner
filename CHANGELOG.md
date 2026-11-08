@@ -10,6 +10,7 @@ Next version: **1.2.1**.
 - Prevented stale tabs from overwriting saved queues, synchronized queue and pending submission changes, and blocked concurrent submissions between tabs.
 - Bound note submissions to the sign-in shown in the tab, rejecting changed sessions before contacting EBT.
 - Protected session fingerprints with a private HMAC-SHA256 key; account actions fail closed if the server key is missing or malformed.
+- Fixed the browser test to wait for a queued-note edit to reach storage after acquiring the cross-tab lock.
 
 ## [1.2.0] - 2026-11-07
 
