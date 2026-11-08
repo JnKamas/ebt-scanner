@@ -11,6 +11,7 @@ Next version: **1.2.1**.
 - Bound note submissions to the sign-in shown in the tab, rejecting changed sessions before contacting EBT.
 - Protected session fingerprints with a private HMAC-SHA256 key; account actions fail closed if the server key is missing or malformed.
 - Fixed the browser test to wait for a queued-note edit to reach storage after acquiring the cross-tab lock.
+- Updated GitHub workflow actions to native Node.js 24 releases pinned to exact commits, removing the deprecated action-runtime warning.
 
 ## [1.2.0] - 2026-11-07
 
