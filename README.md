@@ -53,7 +53,10 @@ npm ci
 npm run dev -- --port 3001
 ```
 
-Open http://localhost:3001. No environment variables or EBT account are needed.
+Open http://localhost:3001. Scanning and local drafts need no EBT account.
+For sign-in and submission, set a private `EBT_SESSION_BINDING_SECRET` in
+`.env.local` as described in [.env.example](.env.example). Vercel preview and
+production each need a separate sensitive key shared across their server instances.
 In PowerShell, use `npm.cmd` if `npm` is blocked.
 
 ## Development and deployment

@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function sessionBindingConfigured() {
+  return /^[a-f0-9]{64}$/i.test(process.env.EBT_SESSION_BINDING_SECRET ?? "");
+}
 
 // Bind a displayed sign-in to its cookie without exposing the upstream token.
 export function sessionKey(session: string) {
-  return createHash("sha256").update(`ebt-scanner-session:${session}`).digest("hex");
+  if (!sessionBindingConfigured()) throw new Error("Session binding is not configured.");
+  const secret = Buffer.from(process.env.EBT_SESSION_BINDING_SECRET!, "hex");
+  return createHmac("sha256", secret).update(`ebt-scanner-session:v1:${session}`).digest("hex");
+}
+
+export function matchesSessionKey(session: string, key: string | null) {
+  if (!key || !/^[a-f0-9]{64}$/i.test(key)) return false;
+  return timingSafeEqual(Buffer.from(key, "hex"), Buffer.from(sessionKey(session), "hex"));
 }
 
 export const EBT_API_URL = "https://api.eurobilltracker.com/";

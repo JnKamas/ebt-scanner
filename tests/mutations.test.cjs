@@ -2,6 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { NextRequest } = require('next/server');
 const load = require('./load-ts.cjs');
+// Public test fixture only; never used by deployed servers.
+process.env.EBT_SESSION_BINDING_SECRET = 'ab'.repeat(32);
 const { sessionKey } = load('app/api/ebt/shared.ts');
 const note = { id: 'one', serial: 'X00000000002', printerCode: 'R001A1', denomination: '20', country: 'Slovakia', city: 'Bratislava', postalCode: '', comment: '' };
 function request(body, headers = {}) {
@@ -105,6 +107,7 @@ test('login and session responses apply the same public account whitelist', asyn
     assert.deepEqual(Object.keys(response.body.account).sort(), ['my_city', 'my_country', 'my_zip', 'totalbills', 'totalhits', 'username']);
     assert.equal(response.body.account.username, 'Tracker');
     assert(!JSON.stringify(response.body).includes('secret-'));
+    assert(!JSON.stringify(response.body).includes(process.env.EBT_SESSION_BINDING_SECRET));
   }
   assert.deepEqual(login.body.account, session.body.account);
   assert.equal(login.body.sessionKey, sessionKey('secret-session'));
@@ -119,6 +122,48 @@ test('submission binds the displayed sign-in to the exact cookie, including acco
     assert.equal(response.body.code, 'session_changed');
     assert.equal(target.calls.length, 0);
   }
+});
+
+test('session binding requires the server secret and rejects fingerprints after key rotation', () => {
+  const shared = load('app/api/ebt/shared.ts');
+  const original = process.env.EBT_SESSION_BINDING_SECRET;
+  try {
+    const key = shared.sessionKey('fixture-session');
+    assert(shared.matchesSessionKey('fixture-session', key));
+    assert(!shared.matchesSessionKey('another-session', key));
+    for (const invalid of [null, '', 'z'.repeat(64), 'a'.repeat(63), 'a'.repeat(65)]) {
+      assert.equal(shared.matchesSessionKey('fixture-session', invalid), false);
+    }
+    const plain = require('node:crypto').createHash('sha256').update('ebt-scanner-session:fixture-session').digest('hex');
+    assert(!shared.matchesSessionKey('fixture-session', plain));
+    process.env.EBT_SESSION_BINDING_SECRET = 'cd'.repeat(32);
+    assert.notEqual(shared.sessionKey('fixture-session'), key);
+    assert(!shared.matchesSessionKey('fixture-session', key));
+    for (const invalid of ['', 'short', 'z'.repeat(64)]) {
+      process.env.EBT_SESSION_BINDING_SECRET = invalid;
+      assert.equal(shared.sessionBindingConfigured(), false);
+      assert.throws(() => shared.sessionKey('fixture-session'), /not configured/);
+    }
+    delete process.env.EBT_SESSION_BINDING_SECRET;
+    assert.throws(() => shared.sessionKey('fixture-session'), /not configured/);
+  } finally { process.env.EBT_SESSION_BINDING_SECRET = original; }
+});
+
+test('missing or malformed binding secrets block account actions before any upstream call', async () => {
+  const original = process.env.EBT_SESSION_BINDING_SECRET;
+  const req = request({ notes: [note], email: 'fixture@example.test', password: 'fixture' });
+  try {
+    for (const value of ['', 'invalid']) {
+      process.env.EBT_SESSION_BINDING_SECRET = value;
+      for (const route of ['login', 'session', 'notes']) {
+        const target = api(route);
+        const response = await target[route === 'session' ? 'GET' : 'POST'](req);
+        assert.equal(response.status, 503);
+        assert.equal(target.calls.length, 0);
+        assert(!JSON.stringify(response.body).includes(value || 'EBT_SESSION_BINDING_SECRET'));
+      }
+    }
+  } finally { process.env.EBT_SESSION_BINDING_SECRET = original; }
 });
 
 test('cookie deletion retains the same security attributes as login', () => {

@@ -19,6 +19,10 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
 - Drafts and queued notes live in browser local storage. Anyone with access to
   that browser profile may be able to read them.
 - Authenticated responses are not cached. The app requires internet access.
+- Pending 1.2.1 binds submissions to the displayed sign-in using HMAC-SHA256
+  with a private server key. Fingerprints stay in tab memory; the key is never
+  sent to the browser. Missing keys block sign-in and submission. Rotating the
+  key requires open tabs to reload; it does not revoke EBT sessions.
 
 Production fixes are released through `main`. This volunteer project cannot promise
 response times. Tests are not an independent security audit; see
