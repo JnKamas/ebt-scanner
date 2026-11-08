@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson, matchesSessionKey, sessionBindingConfigured } from "../shared";
 import { mutationError, readJsonObject } from "../request-security";
 import { Draft, isDraft, isSerialFormatValid, noteErrors, printerCodePattern } from "../../../lib/note-validation";
 import { maxSubmissionBatch, sameLocation } from "../../../lib/note-queue";
@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   if (!session) return noStoreJson({ error: "Sign in to EBT before submitting notes." }, { status: 401 });
+  if (!sessionBindingConfigured()) return noStoreJson({ error: "Submission is temporarily unavailable. Your notes remain queued; please try again later." }, { status: 503 });
 
   let payload: { notes?: unknown };
   try {
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
   const location = notes[0];
   if (!notes.every((note) => sameLocation(note, location))) {
     return noStoreJson({ error: "EBT accepts one location per batch. Submit notes from each location separately." }, { status: 400 });
+  }
+
+  if (!matchesSessionKey(session, request.headers.get("X-EBT-Session"))) {
+    return noStoreJson({ error: "Your sign-in changed in another tab. Reload, review the signed-in account, and submit again.", code: "session_changed" }, { status: 409 });
   }
 
   const parameters: Record<string, string> = { m: "insertbills", v: "1", PHPSESSID: session, city: location.city, zip: location.postalCode, country: location.country };

@@ -34,8 +34,26 @@ export function readLocalState(storage: StorageAccess): { notes: Note[]; draft: 
   return result;
 }
 
-export function writeLocalState(storage: StorageAccess, notes: Note[], draft: Draft): string {
+export type LocalSnapshot = { notes: Note[]; draft: Draft };
+
+export function writeLocalState(storage: StorageAccess, notes: Note[], draft: Draft, previous?: LocalSnapshot): string {
   try {
+    if (previous) {
+      const latest = readLocalState(storage);
+      if (latest.error) return latest.error;
+      const queueChanged = JSON.stringify(notes) !== JSON.stringify(previous.notes);
+      if (queueChanged && JSON.stringify(latest.notes) !== JSON.stringify(previous.notes)) {
+        return "The queue changed in another tab. Your saved notes have been kept. Reload before editing or submitting the queue again.";
+      }
+      if (queueChanged) storage.setItem(keys.queue, JSON.stringify(notes.map((note) => ({ ...draftOnly(note), id: note.id, createdAt: note.createdAt }))));
+      const changes = draftFields.filter((key) => draft[key] !== previous.draft[key]);
+      if (changes.length) {
+        const merged = draftOnly(latest.draft);
+        for (const key of changes) merged[key] = draft[key];
+        storage.setItem(keys.draft, JSON.stringify(merged));
+      }
+      return "";
+    }
     storage.setItem(keys.queue, JSON.stringify(notes.map((note) => ({ ...draftOnly(note), id: note.id, createdAt: note.createdAt }))));
     storage.setItem(keys.draft, JSON.stringify(draftOnly(draft)));
     return "";

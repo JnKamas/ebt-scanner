@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE, loginCookieOptions, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, loginCookieOptions, ebtRequest, noStoreJson, sessionKey, sessionBindingConfigured } from "../shared";
 import { EbtAccount, publicAccount } from "../../../lib/ebt";
 import { mutationError, readJsonObject } from "../request-security";
 
@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   const blocked = mutationError(request);
   if (blocked) return blocked;
+  if (!sessionBindingConfigured()) return noStoreJson({ error: "Sign-in is temporarily unavailable. Please try again later." }, { status: 503 });
   let payload: { email?: unknown; password?: unknown; rememberMe?: unknown };
   try {
     payload = await readJsonObject(request, 4096);
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const account = result as EbtAccount & { sessionid: string };
-    const response = noStoreJson({ account: publicAccount(account) });
+    const response = noStoreJson({ account: publicAccount(account), sessionKey: sessionKey(account.sessionid) });
     response.cookies.set(SESSION_COOKIE, account.sessionid, loginCookieOptions(payload.rememberMe === true));
     return response;
   } catch {

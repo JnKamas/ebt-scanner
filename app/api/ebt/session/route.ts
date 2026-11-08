@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
+import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson, sessionKey, sessionBindingConfigured } from "../shared";
 import { EbtAccount, publicAccount } from "../../../lib/ebt";
 
 export const runtime = "nodejs";
@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   if (!session) return noStoreJson({ account: null });
+  if (!sessionBindingConfigured()) return noStoreJson({ error: "Sign-in is temporarily unavailable. Please try again later." }, { status: 503 });
 
   try {
     const result = await ebtRequest({ m: "sessioncheck", v: "2", autologin: "0", PHPSESSID: session });
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       return clearSession(noStoreJson({ account: null }));
     }
     const account = result as unknown as EbtAccount;
-    return noStoreJson({ account: publicAccount(account) });
+    return noStoreJson({ account: publicAccount(account), sessionKey: sessionKey(session) });
   } catch {
     return noStoreJson({ error: "Could not check your EBT session." }, { status: 502 });
   }

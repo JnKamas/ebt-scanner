@@ -4,6 +4,15 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-08
+
+- Updated release, testing and security notes, including the README testing description.
+- Prevented stale tabs from overwriting saved queues, synchronized queue and pending submission changes, and blocked concurrent submissions between tabs.
+- Bound note submissions to the sign-in shown in the tab, rejecting changed sessions before contacting EBT.
+- Protected session fingerprints with a private HMAC-SHA256 key; account actions fail closed if the server key is missing or malformed.
+- Fixed the browser test to wait for a queued-note edit to reach storage after acquiring the cross-tab lock.
+- Updated GitHub workflow actions to native Node.js 24 releases pinned to exact commits, removing the deprecated action-runtime warning.
+
 ## [1.2.0] - 2026-11-07
 
 - Limited login attempts to 10 per IP per 10 minutes in each Vercel region, on production and previews.

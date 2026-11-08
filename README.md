@@ -29,8 +29,8 @@ have been tested by the maintainer. The app requires an internet connection.
 
 ## Your data
 
-These details describe the code on this branch. The live app follows `main`;
-`develop` contains changes awaiting release.
+Version **1.2.1** is the release on `main`; `develop` contains upcoming changes.
+These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
 comments and the queue stay in this browser. Scanning does not require sign-in.
@@ -53,7 +53,10 @@ npm ci
 npm run dev -- --port 3001
 ```
 
-Open http://localhost:3001. No environment variables or EBT account are needed.
+Open http://localhost:3001. Scanning and local drafts need no EBT account.
+For sign-in and submission, set a private `EBT_SESSION_BINDING_SECRET` in
+`.env.local` as described in [.env.example](.env.example). Vercel preview and
+production each need a separate sensitive key shared across their server instances.
 In PowerShell, use `npm.cmd` if `npm` is blocked.
 
 ## Development and deployment
@@ -66,7 +69,7 @@ Vercel project: `ebt-web` (the internal hosting name).
 Preview and production have separate browser storage. Both use the real EBT API,
 so submitting from a preview still enters real notes.
 
-See [Testing](REVIEW.md) for completed checks and how to run them, and
+See [Testing](REVIEW.md) for completed checks, and
 [Security](SECURITY.md) for private reports.
 
 ## Versions and changes
