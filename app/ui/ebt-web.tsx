@@ -6,6 +6,9 @@ import AppInformation from "./app-information";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
 import { EbtAccount, Receipt, SubmissionResult, submissionStatus } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
+import BanknotePhotoCard from "./banknote-photo-card";
+import SavedScanPhotos, { ScanPhotoCard } from "./scan-photo-cards";
+import { saveScanPhoto, saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
 import { submissionBatch } from "../lib/note-queue";
@@ -68,6 +71,10 @@ export default function EbtScanner({ version }: { version: string }) {
   const [cameraHint, setCameraHint] = useState("");
   const [previewReady, setPreviewReady] = useState(false);
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
+  const [latestPhotos, setLatestPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
+  const [unsavedPhotos, setUnsavedPhotos] = useState<ScanPhoto[]>([]);
+  const [unsavedCards, setUnsavedCards] = useState<Array<{ note: Note; photos: Partial<Record<ScanTarget, ScanPhoto>>; submitted: boolean }>>([]);
+  const photoWritesRef = useRef<Promise<void>>(Promise.resolve());
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [resultSecondsRemaining, setResultSecondsRemaining] = useState(0);
   const [autoQueueNext, setAutoQueueNext] = useState(false);
@@ -421,6 +428,29 @@ export default function EbtScanner({ version }: { version: string }) {
     void openCamera(target);
   }
 
+  function queuePhotoWrite(action: () => Promise<void>) {
+    photoWritesRef.current = photoWritesRef.current.then(action);
+  }
+
+  async function storePhotoCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>, submitted = false) {
+    try {
+      await saveScanNoteCard(note, photos);
+      if (submitted) await markScanNoteSubmitted(note.id);
+      setUnsavedCards((current) => current.filter((item) => item.note.id !== note.id));
+    } catch {
+      setUnsavedCards((current) => [...current.filter((item) => item.note.id !== note.id), { note, photos, submitted }]);
+    }
+  }
+
+  async function storeScanPhoto(photo: ScanPhoto) {
+    try {
+      await saveScanPhoto(photo);
+      setUnsavedPhotos((current) => current.filter((item) => item.id !== photo.id));
+    } catch {
+      setUnsavedPhotos((current) => current.some((item) => item.id === photo.id) ? current : [...current, photo]);
+    }
+  }
+
   function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
@@ -432,6 +462,9 @@ export default function EbtScanner({ version }: { version: string }) {
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult({ ...match, target, image, width, height });
+    const photo: ScanPhoto = { ...match, target, image, width, height, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
+    setLatestPhotos((current) => ({ ...current, [target]: photo }));
+    queuePhotoWrite(() => storeScanPhoto(photo));
     const finishAt = Date.now() + resultDisplaySeconds * 1000;
     setResultSecondsRemaining(resultDisplaySeconds);
     resultCountdownRef.current = window.setInterval(() => {
@@ -484,7 +517,7 @@ export default function EbtScanner({ version }: { version: string }) {
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
-        finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.92), canvas.width, canvas.height);
+        finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.82), canvas.width, canvas.height);
         return;
       }
       if (cameraActiveRef.current && request === cameraRequestRef.current) setCameraHint(`Still looking for the ${labelFor(target)}…`);
@@ -540,7 +573,7 @@ export default function EbtScanner({ version }: { version: string }) {
       if (request !== cameraRequestRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       const activeLabel = stream.getVideoTracks()[0]?.label || "Camera";
-      setCameraHint(`${activeLabel}. ${fallback ? "Saved camera unavailable; using the default. " : ""}${previewOnly ? "Check close-up focus. Preview closes after 15 seconds; no codes are saved." : `Centre the ${labelFor(target)} inside the guide.`}`);
+      setCameraHint(`${activeLabel}. ${fallback ? "Saved camera unavailable; using the default. " : ""}${previewOnly ? "Check close-up focus. Recognition is off. Camera test closes after 15 seconds; no codes or photos are saved." : `Centre the ${labelFor(target)} inside the guide.`}`);
       cameraActiveRef.current = true;
       setPreviewReady(false);
       setScanResult(null);
@@ -601,6 +634,8 @@ export default function EbtScanner({ version }: { version: string }) {
     }
     const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
+    queuePhotoWrite(() => storePhotoCard(newNote, latestPhotos));
+    setLatestPhotos((current) => reusePrinterCode && current.printerCode?.value === clean(currentDraft.printerCode) ? { printerCode: current.printerCode } : {});
     const nextDraft = keepLocationAndComment ? { ...currentDraft, serial: "", printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" } : { ...blankDraft(), denomination: currentDraft.denomination, country: currentDraft.country, city: currentDraft.city, postalCode: currentDraft.postalCode, printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" };
     draftRef.current = nextDraft;
     setDraft(nextDraft);
@@ -711,6 +746,10 @@ export default function EbtScanner({ version }: { version: string }) {
       const successful = data.results.filter(({ result }) => result && (submissionStatus(result.status) === 0 || submissionStatus(result.status) === 1));
       const hits = successful.filter(({ result }) => submissionStatus(result?.status) === 1).length;
       if (successful.length) {
+        for (const result of successful) {
+          const submittedNote = batch.find((note) => note.id === result.id);
+          if (submittedNote) queuePhotoWrite(() => storePhotoCard(submittedNote, {}, true));
+        }
         const remaining = notesRef.current.filter((note) => !successful.some(({ id }) => id === note.id));
         setNotes(remaining);
         // Save confirmed removals before clearing the pending marker. A reload
@@ -764,8 +803,8 @@ export default function EbtScanner({ version }: { version: string }) {
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} Continuing in {resultSecondsRemaining}s.</small></div>
-          <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EURO SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small><small>{scanResult.target === "printerCode" ? "Printer code saved. Turn the note over for the serial number." : autoQueueNext ? "Serial checksum passed. This note will be queued and the next note will start." : "Serial checksum passed. Review the note before adding it to the queue."} {resultSecondsRemaining > 0 ? `Continuing in ${resultSecondsRemaining}s.` : "Review at your pace, then continue."}</small></div>
+          <div className="result-actions">{resultSecondsRemaining > 0 && <button className="redo-scan" onClick={clearResultCountdown}>Keep reviewing</button>}<button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => advanceFromLiveResult(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview" aria-busy={!previewReady}>
             <video ref={videoRef} autoPlay playsInline muted />
@@ -775,8 +814,13 @@ export default function EbtScanner({ version }: { version: string }) {
           </div>
           <p className="camera-hint">{previewReady && <i />} {previewReady ? cameraHint : cameraPending ? "Allow camera access if your browser asks." : "Getting the preview ready..."}</p>
         </>}
+        {!cameraPreviewOnly && !scanResult && scanTarget === "serial" && latestPhotos.printerCode && <details className="previous-scan-photo" open><summary>Printer code photo: {latestPhotos.printerCode.value}</summary><ScanPhotoCard photo={latestPhotos.printerCode} /></details>}
       </div>}
 
+    {(unsavedPhotos.length > 0 || unsavedCards.length > 0) && <p className="notice" role="alert">Scan photos or banknote cards could not be saved. Keep this page open and free browser storage. Your note queue is separate. <button type="button" onClick={() => {
+      unsavedPhotos.forEach((photo) => queuePhotoWrite(() => storeScanPhoto(photo)));
+      unsavedCards.forEach(({ note, photos, submitted }) => queuePhotoWrite(() => storePhotoCard(note, photos, submitted)));
+    }}>Retry saving photos</button></p>}
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
@@ -797,6 +841,7 @@ export default function EbtScanner({ version }: { version: string }) {
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" aria-invalid={Boolean(draft.serial) && !serialOk} />
         </div>
       </div>
+      {Object.keys(latestPhotos).length > 0 && <section className="latest-scan-photos" aria-label="Latest scan photos"><h3>Latest scan photos</h3><p>Captured values are shown on each photo. Compare them with your editable fields above.</p>{(["printerCode", "serial"] as const).map((target) => latestPhotos[target] && <ScanPhotoCard key={latestPhotos[target].id} photo={latestPhotos[target]} />)}</section>}
       <button className="save" onClick={() => addNote()} disabled={!storageReady}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
       <a className="location-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
@@ -811,14 +856,16 @@ export default function EbtScanner({ version }: { version: string }) {
           return;
         }
         setNotes((current) => current.map((note) => note.id === editingNote.id ? { ...editingNote, serial: clean(editingNote.serial), printerCode: clean(editingNote.printerCode) } : note));
+        queuePhotoWrite(() => storePhotoCard({ ...editingNote, serial: clean(editingNote.serial), printerCode: clean(editingNote.printerCode) }, {}));
         setEditingNote(null);
         setMessage("Queued note updated. Submit again when ready.");
       }}><h2>Edit queued note</h2>{(["serial", "printerCode", "denomination", "country", "city", "postalCode", "comment"] as const).map((field) => <label key={field}>{({ serial: "Serial number", printerCode: "Printer code", denomination: "Denomination", country: "Country (English name)", city: "City", postalCode: "Postal code", comment: "Comment" })[field]}<input value={editingNote[field]} onChange={(event) => setEditingNote({ ...editingNote, [field]: event.target.value })} /></label>)}<div><button type="submit">Save changes</button><button type="button" onClick={() => setEditingNote(null)}>Cancel</button></div></form>}
       <SubmissionReceipts key={account?.username || "signed-out"} receipts={receipts} />
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note) => <article key={note.id}><div className="queued-note"><strong>€{note.denomination}</strong><div className="queued-details"><span>Serial: <BanknoteFlag serial={note.serial} /> {note.serial}</span><span>Printer code: <BanknoteFlag serial={note.serial} printerCode={note.printerCode} /> {note.printerCode}</span><small>Country: {note.country} / City: {note.city}</small></div></div><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
+      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note, index) => <article key={note.id} className="banknote-queue-card"><p className="banknote-card-number">Banknote {index + 1}/{notes.length}</p><BanknotePhotoCard note={note} status={uncertainIds.includes(note.id) ? "Check EBT before retrying" : "Queued: not submitted"} /><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
       {message && <p className="notice" role="status">{message}</p>}
       {uncertainIds.length > 0 && !isSubmitting && <p className="notice" role="alert">Submission outcome unknown. Check your EBT entries before retrying to avoid duplicates. <button type="button" onClick={() => savePendingSubmission([])}>I checked EBT; allow retry</button></p>}
+      <SavedScanPhotos />
       <div className="queue-submit">
       {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote) || uncertainIds.length > 0}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${batch.length})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       </div>
@@ -827,7 +874,7 @@ export default function EbtScanner({ version }: { version: string }) {
     {tab === "profile" && <section className="profile-panel"><p className="eyebrow">PROFILE</p><h2>Your EuroBillTracker profile.</h2><p>Your account, tracking statistics, and maps.</p>{account && <section className="stats-card" aria-label="My EuroBillTracker statistics"><span>MY EBT STATS</span><strong>{account.username}</strong><div><p><b>{account.totalbills}</b><small>notes</small></p><p><b>{account.totalhits}</b><small>hits</small></p><p><b>{notesPerHit}</b><small>notes / hit</small></p></div><PersonalProfile key={account.username} onTotals={updateTotals} /></section>}{account ? <div className="account-card"><span>Signed in to EuroBillTracker</span><strong>{account.username}</strong><small>{account.totalbills} notes · {account.totalhits} hits</small><button onClick={() => void logout()} disabled={isLoggingOut}>{isLoggingOut ? "Signing out..." : "Sign out"}</button>{logoutNeedsConfirmation && <button type="button" onClick={() => void logout(true)} disabled={isLoggingOut}>Sign out on this device only</button>}</div> : <form className="login-form" onSubmit={login}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label><label className="remember-me"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} aria-describedby="remember-me-help" /><span>Remember me for up to 30 days</span></label><small id="remember-me-help">Checking this stores a sign-in cookie on this device for up to 30 days. EBT may ask you to sign in sooner.</small><button type="submit" disabled={isLoggingIn}>{isLoggingIn ? "Signing in…" : "Sign in to EuroBillTracker"}</button><aside className="privacy-summary" aria-label="Sign-in privacy"><p>Sign-in sends your EBT email and password through the app server on Vercel to EBT over HTTPS. The app does not save your password. An EBT session cookie keeps you signed in.</p><Link href="/about" target="_blank" rel="noopener noreferrer">Who maintains this app, password handling &amp; source status</Link></aside></form>}{message && <p className="notice" role="status">{message}</p>}</section>}
 
     {tab === "settings" && <section className="settings-panel"><p className="eyebrow">SETTINGS</p><h2>Settings</h2><p>Settings are saved in this browser on this device and are not tied to your EuroBillTracker profile.</p><div className="scan-settings">
-        <h3>Scanning cameras</h3>
+        <h3>Scanning cameras</h3><small>Camera tests check the view and focus only. For text recognition, use the Scan controls in Entry.</small>
         <small>First click Scan for cameras and allow camera access. Then select a camera separately for each code. Changing a selection never opens the camera.</small>
         <button type="button" className="camera-test" onClick={() => void discoverCameras()} disabled={cameraPending || cameraOpen}>{cameraPending ? "Opening camera…" : "Scan for cameras"}</button>
         {cameraListMessage && <small role="status">{cameraListMessage}</small>}
@@ -838,7 +885,7 @@ export default function EbtScanner({ version }: { version: string }) {
             {cameraPreferences[target].deviceId && !cameras.some((camera) => camera.deviceId === cameraPreferences[target].deviceId) && <option value={cameraPreferences[target].deviceId}>Saved camera (scan to check availability)</option>}
             {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
           </select></label>
-          <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
+          <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Test camera: {labelFor(target)} (no recognition)</button>
         </fieldset>)}
         <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 

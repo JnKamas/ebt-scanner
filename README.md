@@ -20,7 +20,7 @@ Contact: [support@eurocoins.cc](mailto:support@eurocoins.cc)
 
 Each scan runs for up to 15 seconds and stops when it finds a valid code.
 You can edit either field or enter everything manually. Settings lets you choose
-cameras and try a preview. For batches, use **Use this printer code for multiple notes**.
+cameras and test focus without recognition. For batches, use **Use this printer code for multiple notes**.
 
 The app also shows submission results, account totals and available hit journeys
 and maps. You can install it from your browser; on iPhone, use Safari's
@@ -33,7 +33,10 @@ Version **1.2.3** is the release on `main`; `develop` contains upcoming changes.
 These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
-comments and the queue stay in this browser. Scanning does not require sign-in.
+comments and the queue stay in this browser. Successful scan photos stay here too,
+including after submission, together with banknote cards containing location and comment.
+Review, download or delete them under Saved scan photos in Queue.
+Scanning does not require sign-in.
 
 Signing in sends your email and password through the app's server on Vercel to
 EBT over HTTPS. The app does not save your password. An HttpOnly cookie holds

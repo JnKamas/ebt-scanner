@@ -4,9 +4,11 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.2.4**.
+Next version: **1.3.0**.
 
-- Prepared 1.2.4 development after the 1.2.3 release.
+- Added paired banknote photo cards showing both codes, location, comment and submission status, plus a pause for scan review and searchable local history that remains after submission.
+- Added photo downloads, individual deletion and confirmed bulk deletion, with visible storage errors and retry.
+- Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10
 

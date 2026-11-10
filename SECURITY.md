@@ -18,6 +18,9 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
   expiry until sign-out and a new login.
 - Drafts and queued notes live in browser local storage. Anyone with access to
   that browser profile may be able to read them.
+- Saved scan photos and banknote cards (including location and comment) stay
+  in this browser after submission or queue clearing.
+  Delete them separately under Saved scan photos in Queue; they are never uploaded.
 - Authenticated responses are not cached. The app requires internet access.
 - Version 1.2.1 binds submissions to the displayed sign-in using HMAC-SHA256
   with a private server key. Fingerprints stay in tab memory; the key is never
