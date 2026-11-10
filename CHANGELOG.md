@@ -8,6 +8,7 @@ Next version: **1.3.2**.
 
 - Prepared 1.3.2 development after the 1.3.1 release.
 - Match displayed printer and serial code sizes to their photographed OCR boxes in scan results and banknote cards.
+- Move Submit queue and submission notices above the banknote list.
 
 ## [1.3.1] - 2026-11-10
 
