@@ -113,7 +113,13 @@ test('complete scans queue one banknote with paired crops, inline editing and pe
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const values = await archive.locator('.banknote-code-pair > div > strong').evaluateAll(nodes => nodes.map(node => ({ text: node.textContent, height: node.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(node).lineHeight), width: node.getBoundingClientRect().width, textWidth: node.scrollWidth })));
   expect(values.map(value => value.text)).toEqual(['R001A1', 'X00000000011']);
-  for (const value of values) { expect(value.height).toBeLessThanOrEqual(value.lineHeight + 1); expect(value.textWidth).toBeLessThanOrEqual(value.width + 1); }
+  for (const value of values) { expect(value.textWidth).toBeLessThanOrEqual(value.width + 1); }
+  const matchedSizes = await archive.locator('.banknote-code-pair > div').evaluateAll(nodes => nodes.map(node => {
+    const value = node.querySelector('.capture-code-value').getBoundingClientRect();
+    const photo = node.querySelector('.code-photo').getBoundingClientRect();
+    return { valueWidth: value.width, valueHeight: value.height, photoWidth: photo.width, photoHeight: photo.height };
+  }));
+  for (const size of matchedSizes) { expect(Math.abs(size.valueWidth - size.photoWidth)).toBeLessThanOrEqual(2); expect(Math.abs(size.valueHeight - size.photoHeight)).toBeLessThanOrEqual(2); }
   const crops = await archive.locator('.code-photo').evaluateAll(nodes => nodes.map(node => ({ top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height })));
   expect(Math.abs(crops[0].top - crops[1].top)).toBeLessThan(1);
   expect(crops[0].height).toBe(crops[1].height);

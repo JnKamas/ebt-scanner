@@ -7,6 +7,7 @@ import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-
 import { EbtAccount, Receipt, SubmissionResult, submissionStatus } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
+import CaptureCodeValue from "./capture-code-value";
 import BanknoteQueueList from "./banknote-queue-list";
 import { saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
@@ -818,11 +819,11 @@ export default function EbtScanner({ version }: { version: string }) {
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
         {scanResult ? <>
-          <div className="camera-preview result-preview" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}` }}>
+          <div className="camera-preview result-preview" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}>
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EBT SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small><small>{scanResult.target === "printerCode" ? "Printer code captured. Turn the note over for the serial number." : "Serial number captured. The banknote will be added to Queue."} Continuing in {resultSecondsRemaining}s.</small></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EBT SERIAL CHECKSUM"}</span><strong className="has-capture-code" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}><CaptureCodeValue {...scanResult} /></strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small><small>{scanResult.target === "printerCode" ? "Printer code captured. Turn the note over for the serial number." : "Serial number captured. The banknote will be added to Queue."} Continuing in {resultSecondsRemaining}s.</small></div>
           <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => continueAfterScan(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview" aria-busy={!previewReady}>
