@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Note } from "../lib/note-validation";
+import { denominations, type Note } from "../lib/note-validation";
 import { readScanNoteCard, ScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import type { ScanTarget } from "../lib/banknote-scan";
-import { downloadBanknote } from "../lib/banknote-download";
 import BanknoteFlag from "./banknote-flag";
 
 function CodePhoto({ photo }: { photo: ScanPhoto }) {
@@ -13,11 +12,9 @@ function CodePhoto({ photo }: { photo: ScanPhoto }) {
   </svg>;
 }
 
-export default function BanknotePhotoCard({ note, status, saved, photos: providedPhotos }: { note: Note; status?: string; saved?: ScanNoteCard; photos?: Partial<Record<ScanTarget, ScanPhoto>> }) {
+export default function BanknotePhotoCard({ note, status, saved, photos: providedPhotos, onChange }: { note: Note; status?: string; saved?: ScanNoteCard; photos?: Partial<Record<ScanTarget, ScanPhoto>>; onChange?: (note: Note) => void }) {
   const [loadedPhotos, setPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
   const photos = providedPhotos ?? loadedPhotos;
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState("");
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -36,21 +33,12 @@ export default function BanknotePhotoCard({ note, status, saved, photos: provide
   }, [note.id, revision, providedPhotos]);
 
   return <div className="banknote-photo-card">
-    <div className="banknote-card-heading"><strong>€{note.denomination}</strong><span>{new Date(note.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>
+    <div className="banknote-card-heading">{onChange ? <select className="banknote-denomination" aria-label="Denomination" value={note.denomination} onChange={(event) => onChange({ ...note, denomination: event.target.value })}>{denominations.map((value) => <option key={value} value={value}>€{value}</option>)}</select> : <strong>€{note.denomination}</strong>}<span>{new Date(note.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>
     <div className="banknote-code-pair">{(["printerCode", "serial"] as const).map((target) => <div key={target}>
-      <span>{target === "printerCode" ? "Printer code" : "Serial number"} <BanknoteFlag serial={note.serial} printerCode={target === "printerCode" ? note.printerCode : undefined} /></span><strong>{note[target]}</strong>
+      <span>{target === "printerCode" ? "Printer code" : "Serial number"} <BanknoteFlag serial={note.serial} printerCode={target === "printerCode" ? note.printerCode : undefined} /></span>{onChange ? <input className="banknote-code-input" aria-label={target === "printerCode" ? "Printer code" : "Serial number"} value={note[target]} autoCapitalize="characters" spellCheck={false} onChange={(event) => onChange({ ...note, [target]: event.target.value })} /> : <strong>{note[target]}</strong>}
       {photos[target] ? <><CodePhoto photo={photos[target]} />{photos[target].value !== note[target] && <small>Photo shows {photos[target].value}; value was edited.</small>}</> : <div className="missing-scan-photo">{error ? "Photo unavailable. Refresh to retry." : "No saved photo"}</div>}
     </div>)}</div>
     <p className="banknote-card-status">{status ?? (saved?.submittedAt ? `Submitted ${new Date(saved.submittedAt).toLocaleString()}` : "Saved locally; check EBT for submission status")}</p>
-    <dl><div><dt>Location</dt><dd>{[note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</dd></div><div><dt>Comment</dt><dd>{note.comment || "No comment"}</dd></div></dl>
-    {Object.keys(photos).length > 0 && <>
-      <button type="button" disabled={downloading} onClick={async () => {
-        setDownloading(true); setDownloadError("");
-        try { await downloadBanknote(note, photos); }
-        catch { setDownloadError("Banknote download failed. Try again."); }
-        finally { setDownloading(false); }
-      }}>{downloading ? "Preparing banknote…" : "Download banknote"}</button>
-      {downloadError && <p role="alert">{downloadError}</p>}
-    </>}
+    <dl><div><dt>Location</dt><dd>{onChange ? <div className="banknote-location-fields">{(["country", "city", "postalCode"] as const).map((field) => <label key={field}>{({ country: "Country (English name)", city: "City", postalCode: "Postal code" })[field]}<input value={note[field]} onChange={(event) => onChange({ ...note, [field]: event.target.value })} /></label>)}</div> : [note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</dd></div><div><dt>Comment</dt><dd>{onChange ? <input className="banknote-comment-input" aria-label="Comment" value={note.comment} onChange={(event) => onChange({ ...note, comment: event.target.value })} /> : note.comment || "No comment"}</dd></div></dl>
   </div>;
 }

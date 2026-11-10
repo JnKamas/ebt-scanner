@@ -5,16 +5,26 @@ import type { Note } from "../lib/note-validation";
 import { deleteScanNoteCard, listScanNoteCards, ScanNoteCard } from "../lib/scan-photos";
 import BanknotePhotoCard from "./banknote-photo-card";
 
-export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, onEdit, onRemove }: {
+export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, editingNote, onEdit, onEditingChange, onSaveEdit, onCancelEdit, onRemove }: {
   notes: Note[]; uncertainIds: string[]; isSubmitting: boolean;
+  editingNote: Note | null; onEditingChange: (note: Note) => void;
+  onSaveEdit: (note: Note) => string; onCancelEdit: () => void;
   onEdit: (note: Note) => void; onRemove: (id: string) => void;
 }) {
   const [saved, setSaved] = useState<ScanNoteCard[]>([]);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [editError, setEditError] = useState("");
   const [revision, setRevision] = useState(0);
   const requestRef = useRef(0);
+
+  useEffect(() => {
+    if (editingNote && !notes.some((note) => note.id === editingNote.id)) {
+      setEditError("");
+      onCancelEdit();
+    }
+  }, [editingNote, notes, onCancelEdit]);
 
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1);
@@ -65,10 +75,17 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, o
     <div className="note-list">{banknotes.map((note, index) => {
       const queued = queuedIds.has(note.id);
       const record = savedById.get(note.id);
+      const editing = editingNote?.id === note.id ? editingNote : null;
       const status = queued ? uncertainIds.includes(note.id) ? "Check EBT before retrying" : "Queued: not submitted" : record?.submittedAt ? undefined : "Not queued";
       return <article key={note.id} className="banknote-queue-card"><p className="banknote-card-number">Banknote {index + 1}/{banknotes.length}</p>
-        <BanknotePhotoCard note={note} saved={record} status={status} />
-        <div className="queue-actions">{queued && <button className="edit-note" disabled={isSubmitting} onClick={() => onEdit(note)} aria-label={`Edit ${note.serial}`}>Edit</button>}<button disabled={isSubmitting || busy} aria-label={`Remove ${note.serial}`} onClick={() => void remove(note)}>×</button></div>
+        <form className={editing ? "banknote-inline-edit" : "banknote-card-view"} onSubmit={(event) => {
+          event.preventDefault();
+          if (editing) setEditError(onSaveEdit(editing));
+        }}>
+          <BanknotePhotoCard note={editing ?? note} saved={record} status={status} onChange={editing ? onEditingChange : undefined} />
+          {editing && editError && <p className="notice" role="alert">{editError}</p>}
+          <div className="queue-actions">{editing ? <><button className="edit-note save-inline-note" type="submit" disabled={isSubmitting}>Save changes</button><button className="edit-note" type="button" onClick={() => { setEditError(""); onCancelEdit(); }}>Cancel</button></> : <>{queued && <button className="edit-note" type="button" disabled={isSubmitting || Boolean(editingNote)} onClick={() => { setEditError(""); onEdit(note); }} aria-label={`Edit ${note.serial}`}>Edit</button>}<button type="button" disabled={isSubmitting || busy} aria-label={`Remove ${note.serial}`} onClick={() => void remove(note)}>×</button></>}</div>
+        </form>
       </article>;
     })}</div>
     {more && <button className="load-banknotes" type="button" disabled={busy} onClick={() => void loadMore()}>Load more banknotes</button>}

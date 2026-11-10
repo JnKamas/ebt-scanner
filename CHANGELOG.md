@@ -7,8 +7,8 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.3.0**.
 
 - Added paired banknote photo cards showing both codes, location, comment and submission status, plus searchable local history that remains after submission.
-- Saved and downloaded only the recognized code-box crops; older preview images are cropped and replaced when opened.
-- Saved, reviewed, downloaded and deleted each banknote as one record with paired code crops; removed the separate photo history and preserved shared printer crops when deleting a banknote.
+- Saved only the recognized code-box crops; older preview images are cropped and replaced when opened.
+- Saved, reviewed and deleted each banknote as one record with paired code crops; removed the separate photo history and preserved shared printer crops when deleting a banknote.
 - Added atomic banknote saves, visible storage errors and a banknote-level retry.
 - Preserved paired crops when submission retries an earlier failed banknote-record save.
 - Sent complete valid scans directly to Queue for review and editing, removed Keep reviewing, and kept automatic next-note scanning as a separate preference.
@@ -16,6 +16,7 @@ Next version: **1.3.0**.
 - Fixed queue-card code wrapping caused by inherited 45-pixel widths, aligned the paired crops and simplified their typography.
 - Restricted automated tests to pre-main-merge checks; ordinary develop pushes no longer run tests. Release publication verifies a successful pre-merge check for the exact commit.
 - Removed Enlarge banknote crops and the separate Saved banknotes section; Queue now shows queued and submitted banknotes once in a single list with per-banknote actions.
+- Removed Download banknote and replaced the separate queue editor with editable fields, Save and Cancel inside the selected banknote card.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10

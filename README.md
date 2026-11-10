@@ -36,7 +36,7 @@ These details describe the code on this branch.
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
 comments and the queue stay in this browser. Only the recognized code-box crops are saved as photos,
 including after submission, together with banknote cards containing location and comment.
-Queued and submitted banknotes appear together in Queue. Download or delete a banknote from its card.
+Queued and submitted banknotes appear together in Queue. Edit queued banknotes directly on their cards, or delete a banknote.
 Scanning does not require sign-in.
 
 Signing in sends your email and password through the app's server on Vercel to
