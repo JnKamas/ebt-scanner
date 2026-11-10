@@ -7,7 +7,7 @@ import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-
 import { EbtAccount, Receipt, SubmissionResult, submissionStatus } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
-import SavedScanPhotos from "./scan-photo-cards";
+import BanknoteQueueList from "./banknote-queue-list";
 import { saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
@@ -863,10 +863,10 @@ export default function EbtScanner({ version }: { version: string }) {
       }}><h2>Edit queued note</h2>{(["serial", "printerCode", "denomination", "country", "city", "postalCode", "comment"] as const).map((field) => <label key={field}>{({ serial: "Serial number", printerCode: "Printer code", denomination: "Denomination", country: "Country (English name)", city: "City", postalCode: "Postal code", comment: "Comment" })[field]}<input value={editingNote[field]} onChange={(event) => setEditingNote({ ...editingNote, [field]: event.target.value })} /></label>)}<div><button type="submit">Save changes</button><button type="button" onClick={() => setEditingNote(null)}>Cancel</button></div></form>}
       <SubmissionReceipts key={account?.username || "signed-out"} receipts={receipts} />
       <div className="queue-total"><div><span>{notes.length}</span><small>notes queued</small></div><div><span>€{total}</span><small>total value</small></div></div>
-      {notes.length === 0 ? <div className="empty"><span>◌</span><h2>Your queue is clear</h2><p>Add a note and it will stay here, even if you close the app.</p></div> : <><div className="note-list">{notes.map((note, index) => <article key={note.id} className="banknote-queue-card"><p className="banknote-card-number">Banknote {index + 1}/{notes.length}</p><BanknotePhotoCard note={note} status={uncertainIds.includes(note.id) ? "Check EBT before retrying" : "Queued: not submitted"} /><div className="queue-actions"><button className="edit-note" disabled={isSubmitting} onClick={() => { setEditingNote({ ...note }); setMessage(""); }} aria-label={`Edit ${note.serial}`}>Edit</button><button disabled={isSubmitting} aria-label={`Remove ${note.serial}`} onClick={() => { removeNote(note.id); if (editingNote?.id === note.id) setEditingNote(null); }}>×</button></div></article>)}</div><p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p></>}
+      <BanknoteQueueList notes={notes} uncertainIds={uncertainIds} isSubmitting={isSubmitting} onEdit={(note) => { setEditingNote({ ...note }); setMessage(""); }} onRemove={(id) => { removeNote(id); if (editingNote?.id === id) setEditingNote(null); }} />
+      {notes.length > 0 && <p className="queue-footnote">EBT accepts up to 25 notes with the same location per submission. Notes from other locations remain queued.</p>}
       {message && <p className="notice" role="status">{message}</p>}
       {uncertainIds.length > 0 && !isSubmitting && <p className="notice" role="alert">Submission outcome unknown. Check your EBT entries before retrying to avoid duplicates. <button type="button" onClick={() => savePendingSubmission([])}>I checked EBT; allow retry</button></p>}
-      <SavedScanPhotos />
       <div className="queue-submit">
       {notes.length > 0 && (account ? <button className="submit" onClick={submitQueue} disabled={isSubmitting || Boolean(editingNote) || uncertainIds.length > 0}>{isSubmitting ? "Submitting to EBT…" : `Submit queue (${batch.length})`}</button> : <p className="notice">Sign in from Profile to submit this queue to EuroBillTracker.</p>)}
       </div>

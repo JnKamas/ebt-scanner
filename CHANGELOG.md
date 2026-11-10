@@ -15,6 +15,7 @@ Next version: **1.3.0**.
 - Prevented automatic next-note scanning from queuing the same serial repeatedly while the previous note remains in view.
 - Fixed queue-card code wrapping caused by inherited 45-pixel widths, aligned the paired crops and simplified their typography.
 - Restricted automated tests to pre-main-merge checks; ordinary develop pushes no longer run tests. Release publication verifies a successful pre-merge check for the exact commit.
+- Removed Enlarge banknote crops and the separate Saved banknotes section; Queue now shows queued and submitted banknotes once in a single list with per-banknote actions.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10

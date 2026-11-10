@@ -44,7 +44,6 @@ export default function BanknotePhotoCard({ note, status, saved, photos: provide
     <p className="banknote-card-status">{status ?? (saved?.submittedAt ? `Submitted ${new Date(saved.submittedAt).toLocaleString()}` : "Saved locally; check EBT for submission status")}</p>
     <dl><div><dt>Location</dt><dd>{[note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</dd></div><div><dt>Comment</dt><dd>{note.comment || "No comment"}</dd></div></dl>
     {Object.keys(photos).length > 0 && <>
-      <details className="banknote-photo-review"><summary>Enlarge banknote crops</summary><div className="banknote-enlarged-crops">{(["printerCode", "serial"] as const).map((target) => <div key={target}><span>{target === "printerCode" ? "Printer code" : "Serial number"}</span>{photos[target] ? <img src={photos[target].image} alt={`Enlarged ${target === "printerCode" ? "printer code" : "serial number"} crop: ${photos[target].value}`} /> : <small>No captured crop</small>}</div>)}</div></details>
       <button type="button" disabled={downloading} onClick={async () => {
         setDownloading(true); setDownloadError("");
         try { await downloadBanknote(note, photos); }
