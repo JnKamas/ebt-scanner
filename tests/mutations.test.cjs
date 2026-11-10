@@ -237,3 +237,13 @@ test('unconfirmed logout retains the cookie for retry; local-only sign-out is ex
   assert.equal(target.calls.length, 0);
   assert.equal((await target.POST(request({ localOnly: 'true' }))).status, 400);
 });
+
+
+test('insertion responses normalize numeric strings and mark malformed individual results unknown', async () => {
+  for (const status of [null, false, '', [], -1, '0x0']) {
+    const target = api('notes', () => ({ note0: { status }, note1: { status: '1', billId: 42 } }));
+    const response = await target.POST(request({ notes: [note, { ...note, id: 'two' }] }));
+    assert.equal(response.body.results[0].result, null);
+    assert.equal(response.body.results[1].result.status, 1);
+  }
+});

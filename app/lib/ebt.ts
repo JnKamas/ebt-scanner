@@ -1,6 +1,6 @@
 export type EbtCity = { city: string; country: string; top_zipcode: string; nrlocations: number };
 export type EbtComment = { comment: string; amount: number };
-export type SubmissionResult = { status?: number; billId?: string | number; alreadyDate?: string; alreadyDenom?: string | number };
+export type SubmissionResult = { status?: number | string; billId?: string | number; alreadyDate?: string; alreadyDenom?: string | number };
 export type Receipt = { id: string; serial: string; denomination: string; result: SubmissionResult | null };
 export type EbtProfile = {
   user_name: string; join_date: string; total_notes: number; total_hits: number;
@@ -26,11 +26,18 @@ export function ebtImageUrl(value: unknown): string | null {
   } catch { return null; }
 }
 
+// Upstream JSON is untrusted. Never coerce null, booleans or empty strings to success.
+export function submissionStatus(value: unknown): number | null {
+  if (typeof value !== "number" && !(typeof value === "string" && /^\d+$/.test(value))) return null;
+  const status = Number(value);
+  return Number.isSafeInteger(status) && status >= 0 ? status : null;
+}
+
 export function submissionMessage(result: SubmissionResult | null): string {
-  const status = Number(result?.status);
+  const status = submissionStatus(result?.status);
   if (status === 0) return "Submitted successfully.";
   if (status === 1) return "Hit! This note has been found before.";
-  if (!Number.isSafeInteger(status) || status < 2) return "EBT did not confirm this note. It remains queued; check EBT before retrying.";
+  if (status === null) return "EBT did not confirm this note. It remains queued; check EBT before retrying.";
   const reasons: string[] = [];
   const errors: Array<[number, string]> = [
     [2, "Check the denomination"], [4, "Check the country (use its English name)"],

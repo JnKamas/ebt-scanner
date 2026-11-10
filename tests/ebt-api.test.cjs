@@ -85,3 +85,14 @@ test('map links allow only official EBT HTTP(S) URLs', () => {
   assert.equal(lib.ebtImageUrl('https://eurobilltracker.com.evil.test/map'), null);
   assert.equal(lib.ebtImageUrl('//www.eurobilltracker.com/map'), 'https://www.eurobilltracker.com/map');
 });
+
+
+test('submission statuses reject coercible malformed values and preserve integer API statuses', () => {
+  for (const value of [null, undefined, false, true, '', ' ', [], [0], {}, -1, 0.5, '0.0', '0x0', '1e0', Infinity, NaN, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(lib.submissionStatus(value), null, `Malformed status: ${String(value)}`);
+    assert.match(lib.submissionMessage({ status: value }), /did not confirm/);
+  }
+  for (const value of [0, 1, 20, 128, 32768, '0', '1', '20', '32768']) {
+    assert.equal(lib.submissionStatus(value), Number(value));
+  }
+});

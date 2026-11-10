@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { EbtCity, EbtComment, EbtJourney, EbtProfile, Receipt, submissionMessage } from "../lib/ebt";
+import { EbtCity, EbtComment, EbtJourney, EbtProfile, Receipt, submissionMessage, submissionStatus } from "../lib/ebt";
 
 function useEbtData<T>(url: string | null) {
   const [state, setState] = useState<{ url: string | null; data?: T; error?: string; loading: boolean }>({ url: null, loading: false });
@@ -121,12 +121,12 @@ function HitJourney({ id }: { id: string }) {
 
 export function SubmissionReceipts({ receipts }: { receipts: Receipt[] }) {
   if (!receipts.length) return null;
-  const hits = receipts.filter((receipt) => Number(receipt.result?.status) === 1);
-  const details = receipts.filter((receipt) => Number(receipt.result?.status) !== 0);
+  const hits = receipts.filter((receipt) => submissionStatus(receipt.result?.status) === 1);
+  const details = receipts.filter((receipt) => submissionStatus(receipt.result?.status) !== 0);
   return <section className="submission-receipts" aria-label="Last submission results"><h2>Last submission: {hits.length} {hits.length === 1 ? "hit" : "hits"}</h2>{details.map((receipt) => {
     const id = String(receipt.result?.billId ?? "");
     const hasId = /^\d{1,12}$/.test(id);
-    const status = Number(receipt.result?.status);
+    const status = submissionStatus(receipt.result?.status);
     return <article key={receipt.id} className={status === 1 ? "receipt-hit" : ""}><strong>€{receipt.denomination} · {receipt.serial}</strong><p>{submissionMessage(receipt.result)}</p>{status === 1 && (hasId ? <HitJourney id={id} /> : <p>EBT did not provide a note ID, so journey details are unavailable.</p>)}</article>;
   })}</section>;
 }

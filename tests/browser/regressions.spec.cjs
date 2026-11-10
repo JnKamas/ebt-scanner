@@ -167,3 +167,47 @@ test('a delayed initial session check cannot overwrite a newer successful login'
   await expect(page.locator('.account-card')).toContainText('NewTracker');
   expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('fixture-only')))).toBe(false);
 });
+
+
+for (const status of [null, false, '', []]) {
+  test(`malformed status ${JSON.stringify(status)} preserves the note and retry guard across reloads`, async ({ page }) => {
+    await setup(page, { notes: [note, { ...note, id: 'two', serial: 'X00000000011' }], signedIn: true });
+    await page.route('**/api/ebt/notes', route => route.fulfill({ json: { results: [
+      { id: note.id, result: { status } }, { id: 'two', result: { status: '0' } },
+    ] } }));
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Queue/ }).click();
+    await page.getByRole('button', { name: 'Submit queue (2)' }).click();
+    await expect(page.locator('.note-list article')).toHaveCount(1);
+    await expect(page.locator('.submission-receipts')).toContainText('EBT did not confirm this note');
+    await expect(page.getByRole('button', { name: 'I checked EBT; allow retry' })).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: /^Queue/ }).click();
+    await expect(page.locator('.note-list article')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Submit queue (1)' })).toBeDisabled();
+  });
+}
+
+test('clearing the queue requires confirmation and persists only after acceptance', async ({ page }) => {
+  await setup(page, { notes: [note] });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('Clear all 1 queued note');
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByText('Local queue cleared.', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('ebt-web-queue'))).toBe('[]');
+  await page.reload();
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled();
+});

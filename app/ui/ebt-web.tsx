@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import AppInformation from "./app-information";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
-import { EbtAccount, Receipt, SubmissionResult } from "../lib/ebt";
+import { EbtAccount, Receipt, SubmissionResult, submissionStatus } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
@@ -706,10 +706,10 @@ export default function EbtScanner({ version }: { version: string }) {
         outcomeUnknown = data.outcome === "unknown";
         throw new Error(data.error || "EBT did not confirm the submission. Check EBT before retrying.");
       }
-      outcomeUnknown = data.results.length !== batch.length || data.results.some((item) => !item.result || !Number.isSafeInteger(Number(item.result.status)));
+      outcomeUnknown = data.results.length !== batch.length || data.results.some((item) => !item.result || submissionStatus(item.result.status) === null);
       setReceipts(batch.map((note) => ({ id: note.id, serial: note.serial, denomination: note.denomination, result: data.results!.find((item) => item.id === note.id)?.result ?? null })));
-      const successful = data.results.filter(({ result }) => result && (Number(result.status) === 0 || Number(result.status) === 1));
-      const hits = successful.filter(({ result }) => Number(result?.status) === 1).length;
+      const successful = data.results.filter(({ result }) => result && (submissionStatus(result.status) === 0 || submissionStatus(result.status) === 1));
+      const hits = successful.filter(({ result }) => submissionStatus(result?.status) === 1).length;
       if (successful.length) {
         const remaining = notesRef.current.filter((note) => !successful.some(({ id }) => id === note.id));
         setNotes(remaining);
@@ -723,7 +723,7 @@ export default function EbtScanner({ version }: { version: string }) {
         if (saveError) { outcomeUnknown = true; setStorageError(saveError); }
       }
       const failed = batch.length - successful.length;
-      setMessage(`${successful.length} note${successful.length === 1 ? "" : "s"} submitted${hits ? `, including ${hits} hit${hits === 1 ? "" : "s"}` : ""}.${failed ? ` ${failed} stayed in the queue because EBT rejected it.` : ""}`);
+      setMessage(`${successful.length} note${successful.length === 1 ? "" : "s"} submitted${hits ? `, including ${hits} hit${hits === 1 ? "" : "s"}` : ""}.${failed ? ` ${failed} stayed in the queue. ${outcomeUnknown ? "EBT did not confirm every result; check EBT before retrying." : "EBT rejected it."}` : ""}`);
       // Refresh totals independently; a failed refresh must never undo a submission.
       const accountRequest = accountRequestRef.current;
       void fetch("/api/ebt/session", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null)
@@ -840,7 +840,7 @@ export default function EbtScanner({ version }: { version: string }) {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Scan preview: {labelFor(target)}</button>
         </fieldset>)}
-        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button onClick={() => { setNotes([]); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>After a printer-code scan, the serial scan begins automatically.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Automatically add complete notes and scan the next one</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>

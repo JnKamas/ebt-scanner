@@ -3,6 +3,7 @@ import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson, matchesSessionKe
 import { mutationError, readJsonObject } from "../request-security";
 import { Draft, isDraft, isSerialFormatValid, noteErrors, printerCodePattern } from "../../../lib/note-validation";
 import { maxSubmissionBatch, sameLocation } from "../../../lib/note-queue";
+import { submissionStatus } from "../../../lib/ebt";
 
 export const runtime = "nodejs";
 
@@ -55,7 +56,12 @@ export async function POST(request: NextRequest) {
     const result = await ebtRequest(parameters);
     if (result === false) return clearSession(noStoreJson({ error: "Your EBT session has expired. Sign in again." }, { status: 401 }));
     if (!result || typeof result !== "object") throw new Error("Unconfirmed insertion");
-    return noStoreJson({ results: notes.map((note, index) => ({ id: note.id, result: (result as Record<string, unknown>)[`note${index}`] ?? null })) });
+    return noStoreJson({ results: notes.map((note, index) => {
+      const entry = (result as Record<string, unknown>)[`note${index}`];
+      const status = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? submissionStatus((entry as Record<string, unknown>).status) : null;
+      return { id: note.id, result: status === null ? null : { ...entry as Record<string, unknown>, status } };
+    }) });
   } catch {
     return noStoreJson({ error: "Submission outcome unknown. EBT may have received the notes. Check your EBT entries before retrying to avoid duplicates. The notes remain in your browser queue.", outcome: "unknown" }, { status: 502 });
   }
