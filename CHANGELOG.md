@@ -4,11 +4,12 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.2.3**.
+## [1.2.3] - 2026-11-10
 
 - Prepared 1.2.3 development after the 1.2.2 release.
 - Rejected malformed EBT insertion statuses without removing unconfirmed notes or clearing retry guards.
 - Required confirmation before clearing a non-empty local queue.
+- Updated release, testing and security notes for 1.2.3.
 
 ## [1.2.2] - 2026-11-08
 
