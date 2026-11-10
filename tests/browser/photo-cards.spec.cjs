@@ -56,25 +56,22 @@ async function seed(page, count, legacy = false) {
 
 test('one banknote keeps both box crops, one download and its metadata after submission and reload', async ({ page }) => {
   await start(page, { signedIn: true });
-  await page.clock.install();
+  await fillLocation(page);
+  await page.getByLabel('Comment').fill('Test shop');
   await printerScan(page);
-  await page.getByRole('button', { name: 'Keep reviewing' }).click();
-  await page.clock.fastForward(6000);
-  await expect(page.locator('.scan-success strong')).toHaveText('R001A1');
+  await expect(page.getByRole('button', { name: 'Keep reviewing' })).toHaveCount(0);
   expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
   await page.evaluate(() => { window.ocrItems = []; });
   await page.getByRole('button', { name: 'Continue now' }).click();
   await expect(page.locator('.previous-scan-photo img')).toBeVisible();
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
-  await expect(page.locator('.scan-success strong')).toHaveText(note.serial);
-  await page.getByRole('button', { name: 'Continue now' }).click();
-  await expect(page.locator('.latest-scan-photos .banknote-photo-card')).toHaveCount(1);
-  await expect(page.locator('.latest-scan-photos .code-photo')).toHaveCount(2);
-  await page.locator('#serial-number').fill('X00000000011');
-  await expect(page.locator('.latest-scan-photos')).toContainText(`Photo shows ${note.serial}`);
-  await fillLocation(page);
-  await page.getByLabel('Comment').fill('Test shop');
-  await page.getByRole('button', { name: /Add note to queue/ }).click();
+  await expect(page.locator('.camera-sheet')).toHaveCount(0);
+  await expect(page.locator('.note-list article')).toHaveCount(1);
+  await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
+  await page.getByRole('button', { name: `Edit ${note.serial}`, exact: true }).click();
+  await page.locator('.queue-editor').getByLabel('Serial number', { exact: true }).fill('X00000000011');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.locator('.note-list')).toContainText(`Photo shows ${note.serial}`);
   let submitted;
   await page.route('**/api/ebt/notes', route => {
     submitted = route.request().postDataJSON();
@@ -222,4 +219,33 @@ test('submission recovery preserves a banknote crop after its initial archive sa
   await expect(page.locator('.saved-banknote-card .banknote-card-status')).toContainText('Submitted');
   await expect(page.locator('.saved-banknote-card .code-photo')).toHaveCount(1);
   expect(await counts(page)).toEqual({ banknotes: 1, crops: 1 });
+});
+
+test('automatic next-note preference queues the completed banknote and immediately opens the next scan', async ({ page }) => {
+  await start(page, { preferences: { 'ebt-web-auto-queue-next': 'true' } });
+  await fillLocation(page);
+  await printerScan(page);
+  await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
+  await page.getByRole('button', { name: 'Continue now' }).click();
+  await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(3);
+  await expect(page.locator('.scan-success')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Keep reviewing' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close camera' }).click();
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(1);
+  await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
+});
+
+test('a serial scan with missing required fields retains its values instead of queuing an invalid banknote', async ({ page }) => {
+  await start(page);
+  await page.locator('#printer-code').fill('R001A1');
+  await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
+  await page.locator('.field-row').last().getByRole('button', { name: 'Scan', exact: true }).click();
+  await expect(page.locator('.camera-sheet')).toHaveCount(0);
+  await expect(page.locator('#serial-number')).toHaveValue(note.serial);
+  await expect(page.locator('.entry-panel [role="status"]')).toContainText('Country:');
+  await fillLocation(page);
+  await page.getByRole('button', { name: /Add note to queue/ }).click();
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(1);
 });

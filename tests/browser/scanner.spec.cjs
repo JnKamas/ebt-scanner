@@ -18,6 +18,8 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
   await page.locator('label[for="printer-code"]').click();
   await page.locator('#printer-code').click();
   expect(await page.evaluate(() => window.cameraRequests)).toBe(0);
+  await page.getByLabel('Country', { exact: true }).fill('Slovakia');
+  await page.getByLabel('City', { exact: true }).fill('Bratislava');
   await page.evaluate(value => { window.ocrItems = [value]; }, item('R00111'));
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('R001I1');
@@ -26,7 +28,9 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
   expect(await page.evaluate(() => window.cameraStops)).toBe(1);
   await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000002'));
   await page.getByRole('button', { name: /Scan serial number|Continue/ }).click();
-  await expect(page.locator('.scan-success strong')).toHaveText('X00000000002');
+  await expect(page.locator('.camera-sheet')).toHaveCount(0);
+  await expect(page.locator('.note-list article')).toHaveCount(1);
+  await expect(page.locator('.note-list')).toContainText('X00000000002');
   expect(await page.evaluate(() => window.cameraRequests)).toBe(2);
 });
 
