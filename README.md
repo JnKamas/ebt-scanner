@@ -83,8 +83,10 @@ to see what changed. Every change is committed to GitHub and noted in the change
 Versions use `major.minor.patch`: breaking changes, features, then fixes.
 
 Development tracks the next version. Before an approved production release, date
-its changelog section and keep `package.json` and the lockfile in sync. Checks
-must pass on `main` before CI creates the version tag and GitHub Release.
+its changelog section and keep `package.json` and the lockfile in sync. Run App checks on the final release commit before merging to `main`, using
+a pull request targeting main or a manual workflow run. Ordinary develop pushes
+do not run tests. Fast-forward main to that checked commit; CI verifies the
+pre-merge result before creating the version tag and GitHub Release.
 Release notes identify the source version; Vercel deployment status is tracked separately.
 
 ## License

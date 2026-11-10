@@ -52,10 +52,14 @@
 - The app requires internet access and does not support offline mode. Do not
   register a service worker or add offline page caching. `public/sw.js` only
   retires old installations; it must not handle fetches or cache assets.
-- Run `npm.cmd test` and the TypeScript check for code changes; also build and
-  run `npm.cmd run test:browser` for app behavior, API, storage or build changes.
+- Run tests only immediately before an approved merge to `main`, not after each
+  change or ordinary develop push. Prefer remote GitHub Actions to keep the
+  maintainer's computer responsive. Ordinary work needs a diff review only.
+- Before merging to main, run App checks manually on the exact final release
+  commit (or through a pull request targeting main): unit tests, TypeScript,
+  production build, browser tests and dependency audit. Fast-forward main to that
+  checked commit. CI verifies successful pre-merge checks before publishing.
   Browser tests use fake EBT responses and a fake camera on ports 3001 and 3002.
-  Documentation-only changes need a link/diff check.
 - Keep dependency updates with the lockfile. Record bundled asset sources,
   hashes and licenses
   in `THIRD_PARTY_NOTICES.md` and `public/ocr/PROVENANCE.json`.

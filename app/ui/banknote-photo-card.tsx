@@ -36,7 +36,7 @@ export default function BanknotePhotoCard({ note, status, saved, photos: provide
   }, [note.id, revision, providedPhotos]);
 
   return <div className="banknote-photo-card">
-    <div className="banknote-card-heading"><strong>€{note.denomination}</strong><span>{new Date(note.createdAt).toLocaleString()}</span></div>
+    <div className="banknote-card-heading"><strong>€{note.denomination}</strong><span>{new Date(note.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>
     <div className="banknote-code-pair">{(["printerCode", "serial"] as const).map((target) => <div key={target}>
       <span>{target === "printerCode" ? "Printer code" : "Serial number"} <BanknoteFlag serial={note.serial} printerCode={target === "printerCode" ? note.printerCode : undefined} /></span><strong>{note[target]}</strong>
       {photos[target] ? <><CodePhoto photo={photos[target]} />{photos[target].value !== note[target] && <small>Photo shows {photos[target].value}; value was edited.</small>}</> : <div className="missing-scan-photo">{error ? "Photo unavailable. Refresh to retry." : "No saved photo"}</div>}
