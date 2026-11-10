@@ -514,6 +514,10 @@ export default function EbtScanner({ version }: { version: string }) {
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
+        if (target === "serial" && autoQueueNext && notesRef.current.some((note) => note.serial === match.value)) {
+          setCameraHint("That serial is already queued. Show the next banknote, or close the camera to review the queue.");
+          return;
+        }
         const crop = cropScanPhoto(canvas, canvas.width, canvas.height, match);
         finishLiveScan(target, crop, crop.image, crop.width, crop.height);
         return;

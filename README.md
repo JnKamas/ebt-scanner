@@ -13,10 +13,10 @@ Contact: [support@eurocoins.cc](mailto:support@eurocoins.cc)
 
 ## Using it
 
-1. Choose a denomination and scan the printer code.
+1. Add a location, choose a denomination and scan the printer code.
 2. Turn the note over and scan the serial number.
 3. Complete scans go straight to Queue; review or edit the banknote there.
-   Add a location before scanning. Manual entries use Add note to queue.
+   Manual entries use Add note to queue.
 4. Sign in through Profile when you want to submit to EBT.
 
 Each scan runs for up to 15 seconds and stops when it finds a valid code.

@@ -224,16 +224,20 @@ test('submission recovery preserves a banknote crop after its initial archive sa
 test('automatic next-note preference queues the completed banknote and immediately opens the next scan', async ({ page }) => {
   await start(page, { preferences: { 'ebt-web-auto-queue-next': 'true' } });
   await fillLocation(page);
+  await page.getByRole('checkbox', { name: 'Use this printer code for multiple notes' }).check();
   await printerScan(page);
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
   await page.getByRole('button', { name: 'Continue now' }).click();
   await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(3);
   await expect(page.locator('.scan-success')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Keep reviewing' })).toHaveCount(0);
+  await expect(page.locator('.camera-hint')).toContainText('already queued');
+  await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000011'));
+  await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(4);
   await page.getByRole('button', { name: 'Close camera' }).click();
   await page.getByRole('button', { name: /^Queue/ }).click();
-  await expect(page.locator('.note-list article')).toHaveCount(1);
-  await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
+  await expect(page.locator('.note-list article')).toHaveCount(2);
+  await expect(page.locator('.note-list .code-photo')).toHaveCount(4);
 });
 
 test('a serial scan with missing required fields retains its values instead of queuing an invalid banknote', async ({ page }) => {

@@ -12,6 +12,7 @@ Next version: **1.3.0**.
 - Added atomic banknote saves, visible storage errors and a banknote-level retry.
 - Preserved paired crops when submission retries an earlier failed banknote-record save.
 - Sent complete valid scans directly to Queue for review and editing, removed Keep reviewing, and kept automatic next-note scanning as a separate preference.
+- Prevented automatic next-note scanning from queuing the same serial repeatedly while the previous note remains in view.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10
