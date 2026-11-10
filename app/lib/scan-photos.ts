@@ -1,5 +1,6 @@
 import type { ScanMatch, ScanTarget } from "./banknote-scan";
 import type { Note } from "./note-validation";
+import { cropScanPhoto } from "./scan-photo-crop";
 
 export type ScanPhoto = ScanMatch & {
   id: string;
@@ -10,6 +11,7 @@ export type ScanPhoto = ScanMatch & {
   capturedAt: string;
   denomination: string;
   printerCode: string;
+  cropVersion?: 1;
 };
 
 export type ScanNoteCard = Note & { printerPhotoId?: string; serialPhotoId?: string; submittedAt?: string };
@@ -40,7 +42,7 @@ async function openPhotos(): Promise<IDBDatabase> {
   });
 }
 
-async function changePhotos(change: (store: IDBObjectStore) => void): Promise<void> {
+async function changePhotos(change: (store: IDBObjectStore) => void, notify = true): Promise<void> {
   const db = await openPhotos();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -51,11 +53,37 @@ async function changePhotos(change: (store: IDBObjectStore) => void): Promise<vo
       change(transaction.objectStore("photos"));
     });
   } finally { db.close(); }
-  window.dispatchEvent(new Event("ebt-scan-photos-changed"));
+  if (notify) window.dispatchEvent(new Event("ebt-scan-photos-changed"));
 }
 
-export function saveScanPhoto(photo: ScanPhoto) {
-  return changePhotos((store) => { store.put(photo); });
+export async function saveScanPhoto(photo: ScanPhoto) {
+  const cropped = await codeCropOnly(photo);
+  return changePhotos((store) => { store.put(cropped); });
+}
+
+async function codeCropOnly(photo: ScanPhoto): Promise<ScanPhoto> {
+  if (photo.cropVersion === 1) return photo;
+  if (!photo.image.startsWith("data:image/jpeg;base64,")) throw new Error("Invalid saved code image.");
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Saved code image could not be read."));
+    img.src = photo.image;
+  });
+  return { ...photo, ...cropScanPhoto(image, photo.width, photo.height, photo) };
+}
+
+// Replace older preview captures when opened, preserving IDs used by banknote cards.
+async function upgradePhoto(photo: ScanPhoto): Promise<ScanPhoto> {
+  const cropped = await codeCropOnly(photo);
+  if (cropped !== photo) await changePhotos((store) => {
+    const request = store.get(photo.id);
+    request.onsuccess = () => {
+      // Do not recreate a photo deleted in another tab while decoding its image.
+      if (request.result?.image === photo.image) store.put(cropped);
+    };
+  }, false);
+  return cropped;
 }
 
 export function deleteScanPhoto(id: string) {
@@ -109,7 +137,7 @@ export function markScanNoteSubmitted(id: string) {
 export async function readScanNoteCard(id: string): Promise<{ card?: ScanNoteCard; photos: Partial<Record<ScanTarget, ScanPhoto>> }> {
   const db = await openPhotos();
   try {
-    return await new Promise((resolve, reject) => {
+    const result = await new Promise<{ card?: ScanNoteCard; photos: Partial<Record<ScanTarget, ScanPhoto>> }>((resolve, reject) => {
       const transaction = db.transaction(["photos", "cards"], "readonly");
       let card: ScanNoteCard | undefined;
       const photos: Partial<Record<ScanTarget, ScanPhoto>> = {};
@@ -126,6 +154,10 @@ export async function readScanNoteCard(id: string): Promise<{ card?: ScanNoteCar
       transaction.onabort = () => reject(transaction.error);
       transaction.onerror = () => reject(transaction.error);
     });
+    for (const target of ["printerCode", "serial"] as const) {
+      if (result.photos[target]) result.photos[target] = await upgradePhoto(result.photos[target]);
+    }
+    return result;
   } finally { db.close(); }
 }
 
@@ -159,7 +191,7 @@ export async function listScanNoteCards(search = "", before?: Pick<ScanNoteCard,
 export async function listScanPhotos(search = "", before?: Pick<ScanPhoto, "capturedAt" | "id">): Promise<{ photos: ScanPhoto[]; more: boolean }> {
   const db = await openPhotos();
   try {
-    return await new Promise((resolve, reject) => {
+    const page = await new Promise<{ photos: ScanPhoto[]; more: boolean }>((resolve, reject) => {
       const transaction = db.transaction("photos", "readonly");
       const range = before ? IDBKeyRange.upperBound([before.capturedAt, before.id], true) : undefined;
       const request = transaction.objectStore("photos").index("captured").openCursor(range, "prev");
@@ -180,5 +212,6 @@ export async function listScanPhotos(search = "", before?: Pick<ScanPhoto, "capt
       transaction.onabort = () => reject(transaction.error);
       transaction.onerror = () => reject(transaction.error);
     });
+    return { ...page, photos: await Promise.all(page.photos.map(upgradePhoto)) };
   } finally { db.close(); }
 }

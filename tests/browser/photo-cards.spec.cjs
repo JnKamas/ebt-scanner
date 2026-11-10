@@ -66,6 +66,19 @@ test('scan cards pause, survive submission and reload, preserve originals after 
   await page.screenshot({ path: 'test-results/banknote-photos-mobile.png', fullPage: true });
   await archive.locator('.all-capture-photos > summary').click();
   await expect(archive.locator('.saved-photo')).toHaveCount(2);
+  const storedCrops = await page.evaluate(async () => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('ebt-scan-photos'); request.onsuccess = () => resolve(request.result); });
+    const records = await new Promise(resolve => { const request = db.transaction('photos').objectStore('photos').getAll(); request.onsuccess = () => resolve(request.result); });
+    db.close();
+    return Promise.all(records.map(async record => {
+      const image = new Image();
+      image.src = record.image;
+      await image.decode();
+      return { width: record.width, height: record.height, actualWidth: image.naturalWidth, actualHeight: image.naturalHeight, cropVersion: record.cropVersion, box: record.boxes[0] };
+    }));
+  });
+  expect(storedCrops).toHaveLength(2);
+  for (const crop of storedCrops) expect(crop).toEqual({ width: 94, height: 24, actualWidth: 94, actualHeight: 24, cropVersion: 1, box: { x0: 2, y0: 2, x1: 92, y1: 22 } });
   await archive.getByLabel('Find a serial or printer code').fill(note.serial);
   await expect(archive.locator('.saved-photo')).toHaveCount(1);
   await expect(archive.locator('figcaption strong')).toHaveText(note.serial);
@@ -73,7 +86,7 @@ test('scan cards pause, survive submission and reload, preserve originals after 
   await archive.getByRole('link', { name: 'Download photo' }).click();
   expect((await downloadReady).suggestedFilename()).toBe(`ebt-serial-${note.serial}.jpg`);
   await archive.locator('.photo-enlarge > summary').click();
-  await expect(archive.getByAltText(`Full-size serial number capture: ${note.serial}`)).toBeVisible();
+  await expect(archive.getByAltText(`Enlarged serial number code crop: ${note.serial}`)).toBeVisible();
   await page.setViewportSize({ width: 320, height: 760 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/saved-scan-photos-mobile.png', fullPage: true });
@@ -140,7 +153,7 @@ test('photo history paginates, filters and confirms individual and bulk deletion
     const image = document.createElement('canvas').toDataURL('image/jpeg');
     await new Promise((resolve, reject) => {
       const tx = db.transaction('photos', 'readwrite');
-      for (let i = 0; i < 23; i++) tx.objectStore('photos').put({ id: String(i).padStart(2, '0'), value: `R${String(i).padStart(3, '0')}A1`, printerCode: '', target: 'printerCode', denomination: '20', capturedAt: '2026-11-10T10:00:00Z', image, width: 300, height: 150, boxes: [], confidences: [0.95] });
+      for (let i = 0; i < 23; i++) tx.objectStore('photos').put({ id: String(i).padStart(2, '0'), value: `R${String(i).padStart(3, '0')}A1`, printerCode: '', target: 'printerCode', denomination: '20', capturedAt: '2026-11-10T10:00:00Z', image, width: 300, height: 150, cropVersion: 1, boxes: [], confidences: [0.95] });
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
     });
@@ -195,4 +208,39 @@ test('captures from simultaneous scanner tabs remain independently saved', async
   await page.reload();
   const restored = await history(page);
   await expect(restored.locator('.saved-photo')).toHaveCount(2);
+});
+
+test('opening an older preview capture replaces the stored wider image with its code crop', async ({ page }) => {
+  await start(page);
+  const archive = await history(page);
+  await expect(archive.getByText('No saved scan photos yet.')).toBeVisible();
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 150;
+    const context = canvas.getContext('2d');
+    context.fillStyle = 'red';
+    context.fillRect(0, 0, 300, 150);
+    context.fillStyle = 'green';
+    context.fillRect(100, 50, 40, 20);
+    const db = await new Promise(resolve => { const request = indexedDB.open('ebt-scan-photos'); request.onsuccess = () => resolve(request.result); });
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction('photos', 'readwrite');
+      transaction.objectStore('photos').put({ id: 'older-preview', target: 'printerCode', value: 'R001A1', printerCode: 'R001A1', denomination: '20', capturedAt: '2026-11-10T10:00:00Z', image: canvas.toDataURL('image/jpeg'), width: 300, height: 150, boxes: [{ x0: 100, y0: 50, x1: 140, y1: 70 }], confidences: [0.95] });
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error);
+    });
+    db.close();
+  });
+  await archive.getByRole('button', { name: 'Refresh photos' }).click();
+  await archive.locator('.all-capture-photos > summary').click();
+  await expect(archive.locator('.saved-photo')).toHaveCount(1);
+  await expect.poll(() => archive.locator('.scan-photo-image img').evaluate(image => image.naturalWidth)).toBe(44);
+  const stored = await page.evaluate(async () => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('ebt-scan-photos'); request.onsuccess = () => resolve(request.result); });
+    const record = await new Promise(resolve => { const request = db.transaction('photos').objectStore('photos').get('older-preview'); request.onsuccess = () => resolve(request.result); });
+    db.close();
+    return { id: record.id, width: record.width, height: record.height, cropVersion: record.cropVersion };
+  });
+  expect(stored).toEqual({ id: 'older-preview', width: 44, height: 24, cropVersion: 1 });
 });

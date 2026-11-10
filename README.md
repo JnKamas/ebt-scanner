@@ -33,7 +33,7 @@ Version **1.2.3** is the release on `main`; `develop` contains upcoming changes.
 These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
-comments and the queue stay in this browser. Successful scan photos stay here too,
+comments and the queue stay in this browser. Only the recognized code-box crops are saved as photos,
 including after submission, together with banknote cards containing location and comment.
 Review, download or delete them under Saved scan photos in Queue.
 Scanning does not require sign-in.

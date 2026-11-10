@@ -9,7 +9,7 @@ export function ScanPhotoCard({ photo }: { photo: ScanPhoto }) {
       {photo.boxes.map((box, index) => <i key={index} className="photo-ocr-box" style={{ left: `${box.x0 / photo.width * 100}%`, top: `${box.y0 / photo.height * 100}%`, width: `${(box.x1 - box.x0) / photo.width * 100}%`, height: `${(box.y1 - box.y0) / photo.height * 100}%` }} />)}
     </div>
     <small>OCR confidence: {photo.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" · ")}</small>
-    <details className="photo-enlarge"><summary>Enlarge photo</summary><div><img src={photo.image} alt={`Full-size ${label.toLowerCase()} capture: ${photo.value}`} width={photo.width} height={photo.height} loading="lazy" /></div></details>
+    <details className="photo-enlarge"><summary>Enlarge code crop</summary><div><img src={photo.image} alt={`Enlarged ${label.toLowerCase()} code crop: ${photo.value}`} width={photo.width} height={photo.height} loading="lazy" /></div></details>
     <a href={photo.image} download={`ebt-${photo.target}-${photo.value}.jpg`}>Download photo</a>
   </figure>;
 }

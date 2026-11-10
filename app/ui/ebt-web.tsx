@@ -9,6 +9,7 @@ import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
 import SavedScanPhotos, { ScanPhotoCard } from "./scan-photo-cards";
 import { saveScanPhoto, saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
+import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
 import { submissionBatch } from "../lib/note-queue";
@@ -462,7 +463,7 @@ export default function EbtScanner({ version }: { version: string }) {
     setIsScanning(false);
     setPreviewReady(false);
     setScanResult({ ...match, target, image, width, height });
-    const photo: ScanPhoto = { ...match, target, image, width, height, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
+    const photo: ScanPhoto = { ...match, target, image, width, height, cropVersion: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
     setLatestPhotos((current) => ({ ...current, [target]: photo }));
     queuePhotoWrite(() => storeScanPhoto(photo));
     const finishAt = Date.now() + resultDisplaySeconds * 1000;
@@ -517,7 +518,8 @@ export default function EbtScanner({ version }: { version: string }) {
       const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
-        finishLiveScan(target, match, canvas.toDataURL("image/jpeg", 0.82), canvas.width, canvas.height);
+        const crop = cropScanPhoto(canvas, canvas.width, canvas.height, match);
+        finishLiveScan(target, crop, crop.image, crop.width, crop.height);
         return;
       }
       if (cameraActiveRef.current && request === cameraRequestRef.current) setCameraHint(`Still looking for the ${labelFor(target)}…`);

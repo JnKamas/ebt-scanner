@@ -8,12 +8,7 @@ import { ScanPhotoCard } from "./scan-photo-card";
 import BanknoteFlag from "./banknote-flag";
 
 function CodePhoto({ photo }: { photo: ScanPhoto }) {
-  const boxes = photo.boxes;
-  const x = boxes.length ? Math.max(0, Math.min(...boxes.map((box) => box.x0)) - 10) : 0;
-  const y = boxes.length ? Math.max(0, Math.min(...boxes.map((box) => box.y0)) - 8) : 0;
-  const right = boxes.length ? Math.min(photo.width, Math.max(...boxes.map((box) => box.x1)) + 10) : photo.width;
-  const bottom = boxes.length ? Math.min(photo.height, Math.max(...boxes.map((box) => box.y1)) + 8) : photo.height;
-  return <svg className="code-photo" role="img" aria-label={`${photo.target === "printerCode" ? "Printer code" : "Serial number"} photo: ${photo.value}`} viewBox={`${x} ${y} ${Math.max(1, right - x)} ${Math.max(1, bottom - y)}`}>
+  return <svg className="code-photo" role="img" aria-label={`${photo.target === "printerCode" ? "Printer code" : "Serial number"} photo: ${photo.value}`} viewBox={`0 0 ${photo.width} ${photo.height}`}>
     <image href={photo.image} width={photo.width} height={photo.height} />
   </svg>;
 }

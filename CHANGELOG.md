@@ -7,6 +7,7 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.3.0**.
 
 - Added paired banknote photo cards showing both codes, location, comment and submission status, plus a pause for scan review and searchable local history that remains after submission.
+- Saved and downloaded only the recognized code-box crops; older preview images are cropped and replaced when opened.
 - Added photo downloads, individual deletion and confirmed bulk deletion, with visible storage errors and retry.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
