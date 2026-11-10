@@ -18,6 +18,7 @@ Next version: **1.3.0**.
 - Removed Enlarge banknote crops and the separate Saved banknotes section; Queue now shows queued and submitted banknotes once in a single list with per-banknote actions.
 - Removed Download banknote and replaced the separate queue editor with editable fields, Save and Cancel inside the selected banknote card.
 - Added a country flag beside each banknote location, based on its location country.
+- Prevented Edit clicks from submitting the inline form as its button switches to Save.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10

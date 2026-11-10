@@ -84,7 +84,7 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
         }}>
           <BanknotePhotoCard note={editing ?? note} saved={record} status={status} onChange={editing ? onEditingChange : undefined} />
           {editing && editError && <p className="notice" role="alert">{editError}</p>}
-          <div className="queue-actions">{editing ? <><button className="edit-note save-inline-note" type="submit" disabled={isSubmitting}>Save changes</button><button className="edit-note" type="button" onClick={() => { setEditError(""); onCancelEdit(); }}>Cancel</button></> : <>{queued && <button className="edit-note" type="button" disabled={isSubmitting || Boolean(editingNote)} onClick={() => { setEditError(""); onEdit(note); }} aria-label={`Edit ${note.serial}`}>Edit</button>}<button type="button" disabled={isSubmitting || busy} aria-label={`Remove ${note.serial}`} onClick={() => void remove(note)}>×</button></>}</div>
+          <div className="queue-actions">{editing ? <><button key="save" className="edit-note save-inline-note" type="submit" disabled={isSubmitting}>Save changes</button><button key="cancel" className="edit-note" type="button" onClick={() => { setEditError(""); onCancelEdit(); }}>Cancel</button></> : <>{queued && <button key="edit" className="edit-note" type="button" disabled={isSubmitting || Boolean(editingNote)} onClick={(event) => { event.preventDefault(); setEditError(""); onEdit(note); }} aria-label={`Edit ${note.serial}`}>Edit</button>}<button key="remove" type="button" disabled={isSubmitting || busy} aria-label={`Remove ${note.serial}`} onClick={() => void remove(note)}>×</button></>}</div>
         </form>
       </article>;
     })}</div>
