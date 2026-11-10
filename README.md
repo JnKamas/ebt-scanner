@@ -15,7 +15,7 @@ Contact: [support@eurocoins.cc](mailto:support@eurocoins.cc)
 
 1. Add a location, choose a denomination and scan the printer code.
 2. Turn the note over and scan the serial number.
-3. Complete scans go straight to Queue; review or edit the banknote there.
+3. Each captured code stays visible for the duration set in Settings. After the serial result, the banknote goes to Queue for review or editing.
    Manual entries use Add note to queue.
 4. Sign in through Profile when you want to submit to EBT.
 
@@ -30,7 +30,7 @@ have been tested by the maintainer. The app requires an internet connection.
 
 ## Your data
 
-Version **1.3.0** is the release on `main`; `develop` contains upcoming changes.
+Version **1.3.1** is the release on `main`; `develop` contains upcoming changes.
 These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,
