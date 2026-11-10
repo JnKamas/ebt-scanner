@@ -4,6 +4,10 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.3.2**.
+
+- Prepared 1.3.2 development after the 1.3.1 release.
+
 ## [1.3.1] - 2026-11-10
 
 - Prepared 1.3.1 development after the 1.3.0 release.
