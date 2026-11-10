@@ -10,6 +10,7 @@ Next version: **1.3.0**.
 - Saved and downloaded only the recognized code-box crops; older preview images are cropped and replaced when opened.
 - Saved, reviewed, downloaded and deleted each banknote as one record with paired code crops; removed the separate photo history and preserved shared printer crops when deleting a banknote.
 - Added atomic banknote saves, visible storage errors and a banknote-level retry.
+- Preserved paired crops when submission retries an earlier failed banknote-record save.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10

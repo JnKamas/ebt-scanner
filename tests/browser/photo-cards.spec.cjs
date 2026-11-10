@@ -200,3 +200,26 @@ test('older paired banknotes retain their association while wider preview captur
   });
   expect(photos).toEqual([[44, 24, 1], [44, 24, 1]]);
 });
+
+test('submission recovery preserves a banknote crop after its initial archive save failed', async ({ page }) => {
+  await start(page, { signedIn: true });
+  await printerScan(page);
+  await page.getByRole('button', { name: 'Close camera' }).click();
+  await page.locator('#serial-number').fill(note.serial);
+  await fillLocation(page);
+  await page.evaluate(() => {
+    const open = indexedDB.open.bind(indexedDB); window.failBanknoteStorage = true;
+    indexedDB.open = (...args) => { if (window.failBanknoteStorage && args[0] === 'ebt-scan-photos') throw new DOMException('Quota exceeded', 'QuotaExceededError'); return open(...args); };
+  });
+  await page.getByRole('button', { name: /Add note to queue/ }).click();
+  await expect(page.locator('main .notice[role="alert"]')).toContainText('Banknote records could not be saved');
+  await page.evaluate(() => { window.failBanknoteStorage = false; });
+  await page.route('**/api/ebt/notes', route => route.fulfill({ json: { results: route.request().postDataJSON().notes.map(note => ({ id: note.id, result: { status: 0 } })) } }));
+  await page.getByRole('button', { name: /^Queue/ }).click();
+  await page.getByRole('button', { name: 'Submit queue (1)' }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(0);
+  await page.locator('.saved-scan-photos > summary').click();
+  await expect(page.locator('.saved-banknote-card .banknote-card-status')).toContainText('Submitted');
+  await expect(page.locator('.saved-banknote-card .code-photo')).toHaveCount(1);
+  expect(await counts(page)).toEqual({ banknotes: 1, crops: 1 });
+});

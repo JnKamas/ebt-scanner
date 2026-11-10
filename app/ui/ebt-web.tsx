@@ -74,6 +74,7 @@ export default function EbtScanner({ version }: { version: string }) {
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const [latestPhotos, setLatestPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
   const [unsavedCards, setUnsavedCards] = useState<Array<{ note: Note; photos: Partial<Record<ScanTarget, ScanPhoto>>; submitted: boolean }>>([]);
+  const pendingCardCropsRef = useRef<Record<string, Partial<Record<ScanTarget, ScanPhoto>>>>({});
   const photoWritesRef = useRef<Promise<void>>(Promise.resolve());
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [resultSecondsRemaining, setResultSecondsRemaining] = useState(0);
@@ -433,12 +434,15 @@ export default function EbtScanner({ version }: { version: string }) {
   }
 
   async function storePhotoCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>, submitted = false) {
+    const pairedPhotos = { ...pendingCardCropsRef.current[note.id], ...photos };
+    pendingCardCropsRef.current[note.id] = pairedPhotos;
     try {
-      await saveScanNoteCard(note, photos);
+      await saveScanNoteCard(note, pairedPhotos);
       if (submitted) await markScanNoteSubmitted(note.id);
+      delete pendingCardCropsRef.current[note.id];
       setUnsavedCards((current) => current.filter((item) => item.note.id !== note.id));
     } catch {
-      setUnsavedCards((current) => [...current.filter((item) => item.note.id !== note.id), { note, photos, submitted }]);
+      setUnsavedCards((current) => [...current.filter((item) => item.note.id !== note.id), { note, photos: pairedPhotos, submitted }]);
     }
   }
 
