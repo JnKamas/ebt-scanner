@@ -73,6 +73,10 @@ Vercel project: `ebt-web` (the internal hosting name).
 Preview and production have separate browser storage. Both use the real EBT API,
 so submitting from a preview still enters real notes.
 
+Develop previews offer **Open visual demo** for fake notes, submissions and hit
+journeys. The demo uses temporary, separate data and never contacts EBT.
+The demo page and its controls are unavailable in production.
+
 See [Testing](REVIEW.md) for completed checks, and
 [Security](SECURITY.md) for private reports.
 

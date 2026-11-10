@@ -9,7 +9,7 @@ import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
 import CaptureCodeValue from "./capture-code-value";
 import BanknoteQueueList from "./banknote-queue-list";
-import { saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
+import { saveScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
@@ -24,7 +24,7 @@ type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number
 type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
 type OcrStatus = "loading" | "ready" | "error";
 
-export default function EbtScanner({ version }: { version: string }) {
+export default function EbtScanner({ version, showDemoTools = false }: { version: string; showDemoTools?: boolean }) {
   const [tab, setTab] = useState<Tab>("entry");
   const [logoutNeedsConfirmation, setLogoutNeedsConfirmation] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | null>(null);
@@ -444,8 +444,7 @@ export default function EbtScanner({ version }: { version: string }) {
     const pairedPhotos = { ...pendingCardCropsRef.current[note.id], ...photos };
     pendingCardCropsRef.current[note.id] = pairedPhotos;
     try {
-      await saveScanNoteCard(note, pairedPhotos);
-      if (submitted) await markScanNoteSubmitted(note.id);
+      await saveScanNoteCard(note, pairedPhotos, submitted);
       delete pendingCardCropsRef.current[note.id];
       setUnsavedCards((current) => current.filter((item) => item.note.id !== note.id));
     } catch {
@@ -770,6 +769,9 @@ export default function EbtScanner({ version }: { version: string }) {
           const submittedNote = batch.find((note) => note.id === result.id);
           if (submittedNote) queuePhotoWrite(() => storePhotoCard(submittedNote, {}, true));
         }
+        // Finish archiving before removing accepted notes from the queue.
+        // A reload after the queue updates must also show their submitted records.
+        await photoWritesRef.current;
         const remaining = notesRef.current.filter((note) => !successful.some(({ id }) => id === note.id));
         setNotes(remaining);
         // Save confirmed removals before clearing the pending marker. A reload
@@ -799,6 +801,7 @@ export default function EbtScanner({ version }: { version: string }) {
   }
 
   return <main className="shell">
+    {showDemoTools && <aside className="develop-demo-link"><Link href="/demo">Open visual demo</Link><small>Fake notes and hits, separate from your banknotes.</small></aside>}
     <header className="topbar">
       <div className="brand"><span className="brand-mark">€</span><span>EBT <b>Scanner</b></span></div>
       <AppInformation version={version} />

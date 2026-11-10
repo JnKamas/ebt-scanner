@@ -108,9 +108,9 @@ export function PersonalProfile({ onTotals }: { onTotals: (notes: number, hits: 
     <button type="button" className="text-button" onClick={result.retry}>Refresh my stats</button></>}</div>;
 }
 
-function HitJourney({ id }: { id: string }) {
-  const result = useEbtData<{ journey: EbtJourney }>(`/api/ebt/journey?id=${encodeURIComponent(id)}`);
-  const journey = result.data?.journey;
+function HitJourney({ id, example }: { id: string; example?: EbtJourney }) {
+  const result = useEbtData<{ journey: EbtJourney }>(example ? null : `/api/ebt/journey?id=${encodeURIComponent(id)}`);
+  const journey = example ?? result.data?.journey;
   return <div className="hit-journey"><LoadStatus {...result} />{journey && <>
     <p><b>{journey.total_km.toLocaleString()} km</b> over <b>{journey.total_days.toLocaleString()} days</b></p>
     <ol>{journey.steps.map((step) => <li key={step.step_id}><strong>{step.location_name}, {step.country_name}</strong><span>{step.timestamp} · {step.user_name}</span>{step.step_id > 0 && <span>{step.hit_km.toLocaleString()} km · {step.hit_days.toLocaleString()} days since previous entry</span>}{step.comment && <p>{step.comment}</p>}</li>)}</ol>
@@ -119,7 +119,7 @@ function HitJourney({ id }: { id: string }) {
   </>}</div>;
 }
 
-export function SubmissionReceipts({ receipts }: { receipts: Receipt[] }) {
+export function SubmissionReceipts({ receipts, exampleJourneys }: { receipts: Receipt[]; exampleJourneys?: Record<string, EbtJourney> }) {
   if (!receipts.length) return null;
   const hits = receipts.filter((receipt) => submissionStatus(receipt.result?.status) === 1);
   const details = receipts.filter((receipt) => submissionStatus(receipt.result?.status) !== 0);
@@ -127,6 +127,6 @@ export function SubmissionReceipts({ receipts }: { receipts: Receipt[] }) {
     const id = String(receipt.result?.billId ?? "");
     const hasId = /^\d{1,12}$/.test(id);
     const status = submissionStatus(receipt.result?.status);
-    return <article key={receipt.id} className={status === 1 ? "receipt-hit" : ""}><strong>€{receipt.denomination} · {receipt.serial}</strong><p>{submissionMessage(receipt.result)}</p>{status === 1 && (hasId ? <HitJourney id={id} /> : <p>EBT did not provide a note ID, so journey details are unavailable.</p>)}</article>;
+    return <article key={receipt.id} className={status === 1 ? "receipt-hit" : ""}><strong>€{receipt.denomination} · {receipt.serial}</strong><p>{submissionMessage(receipt.result)}</p>{status === 1 && (hasId ? <HitJourney id={id} example={exampleJourneys?.[id]} /> : <p>EBT did not provide a note ID, so journey details are unavailable.</p>)}</article>;
   })}</section>;
 }

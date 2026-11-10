@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Note } from "../lib/note-validation";
-import { deleteScanNoteCard, listScanNoteCards, ScanNoteCard } from "../lib/scan-photos";
+import { deleteScanNoteCard, listScanNoteCards, ScanNoteCard, type ScanPhoto } from "../lib/scan-photos";
+import type { ScanTarget } from "../lib/banknote-scan";
 import BanknotePhotoCard from "./banknote-photo-card";
 
-export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, editingNote, onEdit, onEditingChange, onSaveEdit, onCancelEdit, onRemove }: {
+export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, editingNote, onEdit, onEditingChange, onSaveEdit, onCancelEdit, onRemove, demo }: {
   notes: Note[]; uncertainIds: string[]; isSubmitting: boolean;
   editingNote: Note | null; onEditingChange: (note: Note) => void;
   onSaveEdit: (note: Note) => string; onCancelEdit: () => void;
   onEdit: (note: Note) => void; onRemove: (id: string) => void;
+  demo?: { cards: ScanNoteCard[]; photos: Record<string, Partial<Record<ScanTarget, ScanPhoto>>> };
 }) {
-  const [saved, setSaved] = useState<ScanNoteCard[]>([]);
+  const [savedRecords, setSaved] = useState<ScanNoteCard[]>([]);
+  const saved = demo?.cards ?? savedRecords;
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -27,12 +30,14 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
   }, [editingNote, notes, onCancelEdit]);
 
   useEffect(() => {
+    if (demo) return;
     const refresh = () => setRevision((value) => value + 1);
     window.addEventListener("ebt-scan-photos-changed", refresh);
     window.addEventListener("focus", refresh);
     return () => { window.removeEventListener("ebt-scan-photos-changed", refresh); window.removeEventListener("focus", refresh); };
-  }, []);
+  }, [Boolean(demo)]);
   useEffect(() => {
+    if (demo) return;
     const request = ++requestRef.current;
     setBusy(true);
     void listScanNoteCards().then((page) => {
@@ -42,7 +47,7 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
       if (request === requestRef.current) setError("Some banknotes could not be loaded. Your queued notes are still shown.");
     }).finally(() => { if (request === requestRef.current) setBusy(false); });
     return () => { requestRef.current++; };
-  }, [revision]);
+  }, [revision, Boolean(demo)]);
 
   async function loadMore() {
     const request = ++requestRef.current;
@@ -56,6 +61,7 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
 
   async function remove(note: Note) {
     if (!window.confirm(`Delete banknote ${note.serial} and its code crops from this browser? This cannot be undone.`)) return;
+    if (demo) { onRemove(note.id); return; }
     setBusy(true);
     try {
       await deleteScanNoteCard(note.id);
@@ -82,7 +88,7 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
           event.preventDefault();
           if (editing) setEditError(onSaveEdit(editing));
         }}>
-          <BanknotePhotoCard note={editing ?? note} saved={record} status={status} onChange={editing ? onEditingChange : undefined} />
+          <BanknotePhotoCard note={editing ?? note} saved={record} status={status} photos={demo ? demo.photos[note.id] ?? {} : undefined} onChange={editing ? onEditingChange : undefined} />
           {editing && editError && <p className="notice" role="alert">{editError}</p>}
           <div className="queue-actions">{editing ? <><button key="save" className="edit-note save-inline-note" type="submit" disabled={isSubmitting}>Save changes</button><button key="cancel" className="edit-note" type="button" onClick={() => { setEditError(""); onCancelEdit(); }}>Cancel</button></> : <>{queued && <button key="edit" className="edit-note" type="button" disabled={isSubmitting || Boolean(editingNote)} onClick={(event) => { event.preventDefault(); setEditError(""); onEdit(note); }} aria-label={`Edit ${note.serial}`}>Edit</button>}<button key="remove" type="button" disabled={isSubmitting || busy} aria-label={`Remove ${note.serial}`} onClick={() => void remove(note)}>×</button></>}</div>
         </form>

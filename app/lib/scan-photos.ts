@@ -102,7 +102,7 @@ async function changePhotoCards(change: (transaction: IDBTransaction) => void): 
   window.dispatchEvent(new Event("ebt-scan-photos-changed"));
 }
 
-export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>) {
+export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>, submitted = false) {
   const crops: Partial<Record<ScanTarget, ScanPhoto>> = {};
   for (const target of ["printerCode", "serial"] as const) if (photos[target]) crops[target] = await codeCropOnly(photos[target]);
   return changePhotoCards((transaction) => {
@@ -112,18 +112,9 @@ export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTa
     request.onsuccess = () => {
       const previous = request.result as ScanNoteCard | undefined;
       store.put({ ...previous, ...note,
+        submittedAt: submitted ? previous?.submittedAt ?? new Date().toISOString() : previous?.submittedAt,
         printerPhotoId: crops.printerCode?.id ?? previous?.printerPhotoId,
         serialPhotoId: crops.serial?.id ?? previous?.serialPhotoId });
-    };
-  });
-}
-
-export function markScanNoteSubmitted(id: string) {
-  return changePhotoCards((transaction) => {
-    const store = transaction.objectStore("cards");
-    const request = store.get(id);
-    request.onsuccess = () => {
-      if (request.result) store.put({ ...request.result, submittedAt: new Date().toISOString() });
     };
   });
 }
