@@ -65,6 +65,11 @@ test('complete scans queue one banknote with paired crops, inline editing and pe
   await page.getByRole('button', { name: 'Continue now' }).click();
   await expect(page.locator('.previous-scan-photo img')).toBeVisible();
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
+  await expect(page.locator('.scan-success strong')).toHaveText(note.serial);
+  await expect(page.locator('.scan-success')).toContainText('VALID EBT SERIAL CHECKSUM');
+  await expect(page.locator('.result-preview img')).toBeVisible();
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
+  await page.getByRole('button', { name: 'Continue now' }).click();
   await expect(page.locator('.camera-sheet')).toHaveCount(0);
   await expect(page.locator('.note-list article')).toHaveCount(1);
   await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
@@ -221,19 +226,33 @@ test('submission recovery preserves a banknote crop after its initial archive sa
   expect(await counts(page)).toEqual({ banknotes: 1, crops: 1 });
 });
 
-test('automatic next-note preference queues the completed banknote and immediately opens the next scan', async ({ page }) => {
-  await start(page, { preferences: { 'ebt-web-auto-queue-next': 'true' } });
+test('automatic next-note scanning waits for the serial preview before queuing and opening the next scan', async ({ page }) => {
+  await page.clock.install();
+  await start(page, { preferences: { 'ebt-web-auto-queue-next': 'true', 'ebt-web-result-display-seconds': '15' } });
   await fillLocation(page);
   await page.getByRole('checkbox', { name: 'Use this printer code for multiple notes' }).check();
   await printerScan(page);
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
   await page.getByRole('button', { name: 'Continue now' }).click();
+  await expect(page.locator('.scan-success strong')).toHaveText(note.serial);
+  expect(await page.evaluate(() => window.cameraRequests)).toBe(2);
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
+  await page.getByRole('button', { name: 'Redo scan', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(3);
+  await expect(page.locator('.scan-success strong')).toHaveText(note.serial);
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
+  await page.getByRole('button', { name: 'Continue now' }).click();
+  await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(4);
   await expect(page.locator('.scan-success')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Keep reviewing' })).toHaveCount(0);
   await expect(page.locator('.camera-hint')).toContainText('already queued');
   await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000011'));
-  await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(4);
+  await expect(page.locator('.scan-success strong')).toHaveText('X00000000011');
+  await page.clock.fastForward(14000);
+  await expect(page.locator('.scan-success strong')).toHaveText('X00000000011');
+  expect(await page.evaluate(() => window.cameraRequests)).toBe(4);
+  await page.clock.fastForward(1000);
+  await expect.poll(() => page.evaluate(() => window.cameraRequests)).toBe(5);
   await page.getByRole('button', { name: 'Close camera' }).click();
   await page.getByRole('button', { name: /^Queue/ }).click();
   await expect(page.locator('.note-list article')).toHaveCount(2);
@@ -245,6 +264,8 @@ test('a serial scan with missing required fields retains its values instead of q
   await page.locator('#printer-code').fill('R001A1');
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
   await page.locator('.field-row').last().getByRole('button', { name: 'Scan', exact: true }).click();
+  await expect(page.locator('.scan-success strong')).toHaveText(note.serial);
+  await page.getByRole('button', { name: 'Continue now' }).click();
   await expect(page.locator('.camera-sheet')).toHaveCount(0);
   await expect(page.locator('#serial-number')).toHaveValue(note.serial);
   await expect(page.locator('.entry-panel [role="status"]')).toContainText('Country:');

@@ -414,6 +414,21 @@ export default function EbtScanner({ version }: { version: string }) {
     void openCamera("serial");
   }
 
+  function continueAfterScan(target: ScanTarget, banknotePhotos = latestPhotos) {
+    if (target === "printerCode") {
+      continueToSerial();
+      return;
+    }
+    stopCamera();
+    if (addNote(true, banknotePhotos)) {
+      if (autoQueueNext) void openCamera(reusePrinterCode ? "serial" : "printerCode");
+      else {
+        setTab("queue");
+        setMessages((current) => ({ ...current, queue: "Banknote added to the queue. Review or edit it here before submitting." }));
+      }
+    }
+  }
+
   function redoLiveScan(target: ScanTarget) {
     clearResultCountdown();
     setScanResult(null);
@@ -450,24 +465,14 @@ export default function EbtScanner({ version }: { version: string }) {
     const photo: ScanPhoto = { ...match, target, image, width, height, cropVersion: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
     const banknotePhotos = { ...latestPhotos, [target]: photo };
     setLatestPhotos(banknotePhotos);
-    if (target === "serial") {
-      stopCamera();
-      if (addNote(true, banknotePhotos)) {
-        if (autoQueueNext) void openCamera(reusePrinterCode ? "serial" : "printerCode");
-        else {
-          setTab("queue");
-          setMessages((current) => ({ ...current, queue: "Banknote added to the queue. Review or edit it here before submitting." }));
-        }
-      }
-      return;
-    }
+    clearResultCountdown();
     setScanResult({ ...match, target, image, width, height });
     const finishAt = Date.now() + resultDisplaySeconds * 1000;
     setResultSecondsRemaining(resultDisplaySeconds);
     resultCountdownRef.current = window.setInterval(() => {
       setResultSecondsRemaining(Math.max(0, Math.ceil((finishAt - Date.now()) / 1000)));
     }, 200);
-    resultTimeoutRef.current = window.setTimeout(continueToSerial, resultDisplaySeconds * 1000);
+    resultTimeoutRef.current = window.setTimeout(() => continueAfterScan(target, banknotePhotos), resultDisplaySeconds * 1000);
   }
 
   async function readFrame() {
@@ -817,8 +822,8 @@ export default function EbtScanner({ version }: { version: string }) {
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>VALID EBT PRINTER CODE FORMAT</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small><small>Printer code captured. Turn the note over for the serial number. Continuing in {resultSecondsRemaining}s.</small></div>
-          <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={continueToSerial}>Continue now</button></div>
+          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EBT SERIAL CHECKSUM"}</span><strong>{scanResult.value}</strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small><small>{scanResult.target === "printerCode" ? "Printer code captured. Turn the note over for the serial number." : "Serial number captured. The banknote will be added to Queue."} Continuing in {resultSecondsRemaining}s.</small></div>
+          <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => continueAfterScan(scanResult.target)}>Continue now</button></div>
         </> : <>
           <div className="camera-preview" aria-busy={!previewReady}>
             <video ref={videoRef} autoPlay playsInline muted />
@@ -888,7 +893,7 @@ export default function EbtScanner({ version }: { version: string }) {
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Test camera: {labelFor(target)} (no recognition)</button>
         </fieldset>)}
-        <label>Show the printer-code result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>The serial scan starts after the printer-code result. A complete, valid banknote goes straight to Queue for review and editing.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Scan the next banknote automatically</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>Each captured code stays visible for this long. After the serial result, a complete, valid banknote goes to Queue, then automatic scanning starts the next note if enabled.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Scan the next banknote automatically</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>
