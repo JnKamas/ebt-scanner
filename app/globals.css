@@ -127,7 +127,7 @@ button { cursor:pointer; }
 .banknote-photo-card { min-width:0; }
 .banknote-card-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
 .banknote-card-heading > strong { padding:4px 10px; border-radius:6px; color:#062c2e; background:var(--mint); font-size:18px; }
-.banknote-card-heading > span { color:var(--muted); font-size:11px; text-align:right; }
+.banknote-card-heading > time { color:var(--muted); font-size:11px; text-align:right; }
 .banknote-code-pair { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); gap:8px; }
 .banknote-code-pair > div { display:grid; grid-template-rows:18px 36px 36px; grid-auto-rows:auto; align-content:start; gap:3px; min-width:0; }
 .banknote-code-pair > div > span { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:500; line-height:18px; white-space:nowrap; color:var(--muted); }
@@ -136,8 +136,8 @@ button { cursor:pointer; }
 .banknote-code-pair small { margin:0; font-size:11px; line-height:1.4; overflow-wrap:anywhere; }
 .missing-scan-photo { display:grid; place-items:center; min-height:36px; padding:4px; border:1px dashed var(--line); border-radius:5px; color:var(--muted); font-size:11px; text-align:center; }
 .banknote-card-status { margin:7px 0 0; padding:6px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); color:var(--mint-dark); font-size:12px; }
-.banknote-photo-card dl { margin:0; }
-.banknote-photo-card dl > div { padding:6px 0; border-bottom:1px solid var(--line); }
+.banknote-photo-card dl { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; margin:0; }
+.banknote-photo-card dl > div { min-width:0; padding:6px 0; border-bottom:1px solid var(--line); }
 .banknote-photo-card dt { margin-bottom:2px; color:var(--muted); font-size:11px; }
 .banknote-photo-card dd { margin:0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
 .banknote-queue-card .queue-actions { justify-content:flex-end; margin-top:6px; }
