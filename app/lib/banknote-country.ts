@@ -7,6 +7,12 @@ const countries: Record<string, string> = {
   GR: "Greece", IE: "Ireland", IT: "Italy", LT: "Lithuania", LV: "Latvia",
   MT: "Malta", NL: "Netherlands", PL: "Poland", PT: "Portugal", SI: "Slovenia", SK: "Slovakia",
 };
+
+export function locationCountry(value: string): Country | null {
+  const location = value.trim().toLowerCase();
+  const entry = Object.entries(countries).find(([code, name]) => code.toLowerCase() === location || name.toLowerCase() === location);
+  return entry ? { code: entry[0].toLowerCase(), name: entry[1] } : null;
+}
 const firstSeriesIssuers: Record<string, string> = {
   B: "LT", C: "LV", D: "EE", E: "SK", F: "MT", G: "CY", H: "SI", L: "FI",
   M: "PT", N: "AT", P: "NL", S: "IT", T: "IE", U: "FR", V: "ES", X: "DE", Y: "GR", Z: "BE",

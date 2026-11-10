@@ -157,3 +157,6 @@ button { cursor:pointer; }
 .banknote-location-fields label { display:grid; gap:5px; font-size:11px; color:var(--muted); }
 .banknote-location-fields label:first-child { grid-column:1 / -1; }
 .note-list .queue-actions > .save-inline-note { padding:9px 12px; border-radius:7px; background:var(--mint); color:var(--ink); }
+
+.banknote-location-line { display:flex; align-items:center; gap:7px; }
+.banknote-location-line .banknote-flag { flex:none; }

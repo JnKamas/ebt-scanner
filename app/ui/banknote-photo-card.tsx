@@ -5,6 +5,7 @@ import { denominations, type Note } from "../lib/note-validation";
 import { readScanNoteCard, ScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import type { ScanTarget } from "../lib/banknote-scan";
 import BanknoteFlag from "./banknote-flag";
+import LocationFlag from "./location-flag";
 
 function CodePhoto({ photo }: { photo: ScanPhoto }) {
   return <svg className="code-photo" role="img" aria-label={`${photo.target === "printerCode" ? "Printer code" : "Serial number"} photo: ${photo.value}`} viewBox={`0 0 ${photo.width} ${photo.height}`}>
@@ -39,6 +40,6 @@ export default function BanknotePhotoCard({ note, status, saved, photos: provide
       {photos[target] ? <><CodePhoto photo={photos[target]} />{photos[target].value !== note[target] && <small>Photo shows {photos[target].value}; value was edited.</small>}</> : <div className="missing-scan-photo">{error ? "Photo unavailable. Refresh to retry." : "No saved photo"}</div>}
     </div>)}</div>
     <p className="banknote-card-status">{status ?? (saved?.submittedAt ? `Submitted ${new Date(saved.submittedAt).toLocaleString()}` : "Saved locally; check EBT for submission status")}</p>
-    <dl><div><dt>Location</dt><dd>{onChange ? <div className="banknote-location-fields">{(["country", "city", "postalCode"] as const).map((field) => <label key={field}>{({ country: "Country (English name)", city: "City", postalCode: "Postal code" })[field]}<input value={note[field]} onChange={(event) => onChange({ ...note, [field]: event.target.value })} /></label>)}</div> : [note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</dd></div><div><dt>Comment</dt><dd>{onChange ? <input className="banknote-comment-input" aria-label="Comment" value={note.comment} onChange={(event) => onChange({ ...note, comment: event.target.value })} /> : note.comment || "No comment"}</dd></div></dl>
+    <dl><div><dt>Location {onChange && <LocationFlag country={note.country} />}</dt><dd>{onChange ? <div className="banknote-location-fields">{(["country", "city", "postalCode"] as const).map((field) => <label key={field}>{({ country: "Country (English name)", city: "City", postalCode: "Postal code" })[field]}<input value={note[field]} onChange={(event) => onChange({ ...note, [field]: event.target.value })} /></label>)}</div> : <span className="banknote-location-line"><LocationFlag country={note.country} /><span>{[note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</span></span>}</dd></div><div><dt>Comment</dt><dd>{onChange ? <input className="banknote-comment-input" aria-label="Comment" value={note.comment} onChange={(event) => onChange({ ...note, comment: event.target.value })} /> : note.comment || "No comment"}</dd></div></dl>
   </div>;
 }

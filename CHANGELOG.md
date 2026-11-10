@@ -17,6 +17,7 @@ Next version: **1.3.0**.
 - Restricted automated tests to pre-main-merge checks; ordinary develop pushes no longer run tests. Release publication verifies a successful pre-merge check for the exact commit.
 - Removed Enlarge banknote crops and the separate Saved banknotes section; Queue now shows queued and submitted banknotes once in a single list with per-banknote actions.
 - Removed Download banknote and replaced the separate queue editor with editable fields, Save and Cancel inside the selected banknote card.
+- Added a country flag beside each banknote location, based on its location country.
 - Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
 
 ## [1.2.3] - 2026-11-10
