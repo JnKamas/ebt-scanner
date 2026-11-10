@@ -4,7 +4,7 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.3.2**.
+## [1.3.2] - 2026-11-10
 
 - Prepared 1.3.2 development after the 1.3.1 release.
 - Match displayed printer and serial code sizes to their photographed OCR boxes in scan results and banknote cards.
@@ -14,6 +14,7 @@ Next version: **1.3.2**.
 - Keep a single timestamp in each banknote heading and show location and comment side by side.
 - Fit displayed codes closely to their scanned character size while preserving natural letter and digit proportions.
 - Add an isolated visual demo on develop previews with fake notes, submissions, rejections and hit journeys; production has no demo controls or accessible demo page.
+- Updated browser regression coverage and release documentation for 1.3.2.
 
 ## [1.3.1] - 2026-11-10
 

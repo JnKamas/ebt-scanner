@@ -193,6 +193,26 @@ test('the unified list paginates and deletes a whole banknote while protecting s
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ebt-web-queue')).length)).toBe(1);
 });
 
+test('older submitted history is removed while a queued banknote keeps its shared printer crop', async ({ page }) => {
+  await start(page);
+  await seed(page, 2);
+  await page.evaluate(async () => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('ebt-scan-photos'); request.onsuccess = () => resolve(request.result); });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('cards', 'readwrite');
+      const store = tx.objectStore('cards');
+      const request = store.get('banknote-0');
+      request.onsuccess = () => store.put({ ...request.result, submittedAt: '2026-11-10T11:00:00Z' });
+      tx.oncomplete = resolve; tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  });
+  const list = await history(page);
+  await expect(list.locator('article')).toHaveCount(1);
+  await expect(list.locator('.code-photo')).toHaveCount(2);
+  expect(await counts(page)).toEqual({ banknotes: 1, crops: 2 });
+});
+
 test('older paired banknotes retain their association while wider preview captures are cropped', async ({ page }) => {
   await start(page);
   await seed(page, 1, true);
