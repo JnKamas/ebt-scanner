@@ -99,6 +99,7 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: 'Submit queue (3)' }).click();
     await page.getByText('Hit! This note has been found before.').waitFor();
     await page.getByText('Check the country (use its English name). Check the printer code.').waitFor();
+    await page.waitForFunction(() => document.querySelectorAll('.note-list article').length === 3);
     assert.equal(await page.locator('.note-list article').count(), 3);
     await page.getByRole('heading', { name: 'Last submission: 1 hit', exact: true }).waitFor();
     assert.equal(await page.locator('.submission-receipts a').count(), 0);
