@@ -7,7 +7,7 @@ test('queue survives Strict Mode startup and development never registers a worke
   await page.getByRole('button', { name: /^Queue/ }).click();
   await expect(page.locator('.note-list article')).toHaveCount(1);
   await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByLabel('Show the printer-code result for')).toHaveValue('7');
+  await expect(page.getByLabel('Show each scan result for')).toHaveValue('7');
   await expect(page.getByRole('checkbox', { name: 'Scan the next banknote automatically' })).toBeChecked();
   await page.reload();
   await page.getByRole('button', { name: /^Queue/ }).click();

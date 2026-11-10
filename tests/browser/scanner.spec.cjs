@@ -28,6 +28,8 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
   expect(await page.evaluate(() => window.cameraStops)).toBe(1);
   await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000002'));
   await page.getByRole('button', { name: /Scan serial number|Continue/ }).click();
+  await expect(page.locator('.scan-success strong')).toHaveText('X00000000002');
+  await page.getByRole('button', { name: 'Continue now', exact: true }).click();
   await expect(page.locator('.camera-sheet')).toHaveCount(0);
   await expect(page.locator('.note-list article')).toHaveCount(1);
   await expect(page.locator('.note-list')).toContainText('X00000000002');

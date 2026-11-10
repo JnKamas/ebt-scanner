@@ -9,6 +9,7 @@ Older entries describe those versions, including features since changed or remov
 - Prepared 1.3.1 development after the 1.3.0 release.
 - Show the serial code and crop for the configured result duration before queuing and starting the next banknote; retain Redo scan and Continue now for both codes.
 - Updated browser regression coverage and release documentation for 1.3.1.
+- Aligned existing settings and scanner checks with the shared result duration and serial preview.
 
 ## [1.3.0] - 2026-11-10
 
