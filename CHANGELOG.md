@@ -13,7 +13,7 @@ Older entries describe those versions, including features since changed or remov
 - Cropped older preview images when opened and kept photo images out of submission requests.
 - Clarified that Settings camera tests do not run recognition.
 - Restricted tests to pre-main-merge checks and required successful checks on the exact release commit before publishing.
-- Updated regression coverage, including asynchronous submitted-record persistence, and release, testing and security notes for 1.3.0.
+- Updated regression coverage, including confirmed submission payloads and asynchronous record persistence, and release, testing and security notes for 1.3.0.
 
 ## [1.2.3] - 2026-11-10
 

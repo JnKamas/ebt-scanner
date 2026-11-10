@@ -92,9 +92,9 @@ test('complete scans queue one banknote with paired crops, inline editing and pe
   await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
   await page.getByRole('button', { name: 'Submit queue (1)' }).click();
   await expect(page.locator('.note-list article')).toHaveCount(1);
+  await expect(page.locator('.banknote-queue-card .banknote-card-status')).toContainText('Submitted');
   expect(JSON.stringify(submitted)).not.toContain('data:image');
   expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('data:image')))).toBe(false);
-  await expect(page.locator('.banknote-queue-card .banknote-card-status')).toContainText('Submitted');
   await page.reload();
   const archive = await history(page);
   await expect(archive.locator('.banknote-queue-card')).toHaveCount(1);
