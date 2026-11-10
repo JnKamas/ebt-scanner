@@ -4,6 +4,10 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.3.1**.
+
+- Prepared 1.3.1 development after the 1.3.0 release.
+
 ## [1.3.0] - 2026-11-10
 
 - Added paired OCR code-box crops saved locally per banknote, with queued and submitted notes together in one list.
