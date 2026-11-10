@@ -4,22 +4,16 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.3.0**.
+## [1.3.0] - 2026-11-10
 
-- Added paired banknote photo cards showing both codes, location, comment and submission status, plus searchable local history that remains after submission.
-- Saved only the recognized code-box crops; older preview images are cropped and replaced when opened.
-- Saved, reviewed and deleted each banknote as one record with paired code crops; removed the separate photo history and preserved shared printer crops when deleting a banknote.
-- Added atomic banknote saves, visible storage errors and a banknote-level retry.
-- Preserved paired crops when submission retries an earlier failed banknote-record save.
-- Sent complete valid scans directly to Queue for review and editing, removed Keep reviewing, and kept automatic next-note scanning as a separate preference.
-- Prevented automatic next-note scanning from queuing the same serial repeatedly while the previous note remains in view.
-- Fixed queue-card code wrapping caused by inherited 45-pixel widths, aligned the paired crops and simplified their typography.
-- Restricted automated tests to pre-main-merge checks; ordinary develop pushes no longer run tests. Release publication verifies a successful pre-merge check for the exact commit.
-- Removed Enlarge banknote crops and the separate Saved banknotes section; Queue now shows queued and submitted banknotes once in a single list with per-banknote actions.
-- Removed Download banknote and replaced the separate queue editor with editable fields, Save and Cancel inside the selected banknote card.
-- Added a country flag beside each banknote location, based on its location country.
-- Prevented Edit clicks from submitting the inline form as its button switches to Save.
-- Clarified that Settings camera tests do not run recognition; actual scans start in Entry.
+- Added paired OCR code-box crops saved locally per banknote, with queued and submitted notes together in one list.
+- Sent complete valid scans directly to Queue for review and inline editing; optional next-note scanning skips serials already queued.
+- Added in-place Save and Cancel, location flags and single-line code values with aligned crops.
+- Preserved banknote records after submission, atomic record saves, retry after storage failures and shared printer crops when deleting a note.
+- Cropped older preview images when opened and kept photo images out of submission requests.
+- Clarified that Settings camera tests do not run recognition.
+- Restricted tests to pre-main-merge checks and required successful checks on the exact release commit before publishing.
+- Updated regression coverage and release, testing and security notes for 1.3.0.
 
 ## [1.2.3] - 2026-11-10
 

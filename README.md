@@ -30,7 +30,7 @@ have been tested by the maintainer. The app requires an internet connection.
 
 ## Your data
 
-Version **1.2.3** is the release on `main`; `develop` contains upcoming changes.
+Version **1.3.0** is the release on `main`; `develop` contains upcoming changes.
 These details describe the code on this branch.
 
 Camera images are processed on your device with PaddleOCR. Drafts, locations,

@@ -48,7 +48,7 @@ test('editing permits an optional blank postcode and uses the same comment check
   await page.getByRole('button', { name: /^Queue/ }).click();
   await page.getByRole('button', { name: `Edit ${note.serial}` }).click();
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.locator('.queue-editor')).toHaveCount(0);
+  await expect(page.locator('.banknote-inline-edit')).toHaveCount(0);
 });
 
 test('corrupt saved data is retained and warned about instead of overwritten', async ({ page }) => {
@@ -178,12 +178,12 @@ for (const status of [null, false, '', []]) {
     await page.goto('/');
     await page.getByRole('button', { name: /^Queue/ }).click();
     await page.getByRole('button', { name: 'Submit queue (2)' }).click();
-    await expect(page.locator('.note-list article')).toHaveCount(1);
+    await expect(page.locator('.note-list article')).toHaveCount(2);
     await expect(page.locator('.submission-receipts')).toContainText('EBT did not confirm this note');
     await expect(page.getByRole('button', { name: 'I checked EBT; allow retry' })).toBeVisible();
     await page.reload();
     await page.getByRole('button', { name: /^Queue/ }).click();
-    await expect(page.locator('.note-list article')).toHaveCount(1);
+    await expect(page.locator('.note-list article')).toHaveCount(2);
     await expect(page.getByRole('button', { name: 'Submit queue (1)' })).toBeDisabled();
   });
 }

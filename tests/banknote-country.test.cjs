@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const { banknoteCountry } = require('./load-ts.cjs')('app/lib/banknote-country.ts');
+const { banknoteCountry, locationCountry } = require('./load-ts.cjs')('app/lib/banknote-country.ts');
 
 test('serial flags distinguish commissioning countries from Europa printing countries', () => {
   assert.equal(banknoteCountry('E00000000000').code, 'sk');
@@ -53,4 +53,12 @@ test('all displayed countries have local SVG assets', () => {
       }
     }
   }
+});
+
+test('location flags use the location country independently of banknote origin', () => {
+  assert.deepEqual(locationCountry(' Slovakia '), { code: 'sk', name: 'Slovakia' });
+  assert.deepEqual(locationCountry('AT'), { code: 'at', name: 'Austria' });
+  assert.deepEqual(locationCountry('portugal'), { code: 'pt', name: 'Portugal' });
+  assert.equal(locationCountry(''), null);
+  assert.equal(locationCountry('unknown'), null);
 });

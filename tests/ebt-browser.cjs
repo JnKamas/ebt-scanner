@@ -99,7 +99,7 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: 'Submit queue (3)' }).click();
     await page.getByText('Hit! This note has been found before.').waitFor();
     await page.getByText('Check the country (use its English name). Check the printer code.').waitFor();
-    assert.equal(await page.locator('.note-list article').count(), 1);
+    assert.equal(await page.locator('.note-list article').count(), 3);
     await page.getByRole('heading', { name: 'Last submission: 1 hit', exact: true }).waitFor();
     assert.equal(await page.locator('.submission-receipts a').count(), 0);
     assert.equal(await page.locator('.submission-receipts article').count(), 2);
@@ -108,7 +108,7 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: 'Edit X00000000020' }).click();
     await page.getByRole('textbox', { name: 'Country (English name)' }).fill('Germany');
     await page.getByRole('button', { name: 'Save changes' }).click();
-    assert.equal(await page.locator('.queue-editor').count(), 0);
+    assert.equal(await page.locator('.banknote-inline-edit').count(), 0);
     assert.match(await page.locator('.note-list').innerText(), /Germany/);
     // Cross-tab saves wait for the shared storage lock after the UI updates.
     await page.waitForFunction(() => {
