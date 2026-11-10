@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Note } from "../lib/note-validation";
 import { readScanNoteCard, ScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import type { ScanTarget } from "../lib/banknote-scan";
-import { ScanPhotoCard } from "./scan-photo-card";
+import { downloadBanknote } from "../lib/banknote-download";
 import BanknoteFlag from "./banknote-flag";
 
 function CodePhoto({ photo }: { photo: ScanPhoto }) {
@@ -13,22 +13,27 @@ function CodePhoto({ photo }: { photo: ScanPhoto }) {
   </svg>;
 }
 
-export default function BanknotePhotoCard({ note, status, saved }: { note: Note; status?: string; saved?: ScanNoteCard }) {
-  const [photos, setPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
+export default function BanknotePhotoCard({ note, status, saved, photos: providedPhotos }: { note: Note; status?: string; saved?: ScanNoteCard; photos?: Partial<Record<ScanTarget, ScanPhoto>> }) {
+  const [loadedPhotos, setPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
+  const photos = providedPhotos ?? loadedPhotos;
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    if (providedPhotos) return;
     const refresh = () => setRevision((value) => value + 1);
     window.addEventListener("ebt-scan-photos-changed", refresh);
     return () => window.removeEventListener("ebt-scan-photos-changed", refresh);
   }, []);
   useEffect(() => {
+    if (providedPhotos) return;
     let cancelled = false;
     void readScanNoteCard(note.id).then((record) => {
       if (!cancelled) { setPhotos(record.photos); setError(false); }
     }).catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
-  }, [note.id, revision]);
+  }, [note.id, revision, providedPhotos]);
 
   return <div className="banknote-photo-card">
     <div className="banknote-card-heading"><strong>€{note.denomination}</strong><span>{new Date(note.createdAt).toLocaleString()}</span></div>
@@ -38,6 +43,15 @@ export default function BanknotePhotoCard({ note, status, saved }: { note: Note;
     </div>)}</div>
     <p className="banknote-card-status">{status ?? (saved?.submittedAt ? `Submitted ${new Date(saved.submittedAt).toLocaleString()}` : "Saved locally; check EBT for submission status")}</p>
     <dl><div><dt>Location</dt><dd>{[note.country, note.city, note.postalCode].filter(Boolean).join(" · ")}</dd></div><div><dt>Comment</dt><dd>{note.comment || "No comment"}</dd></div></dl>
-    {Object.keys(photos).length > 0 && <details className="banknote-photo-review"><summary>Review captured photos</summary>{(["printerCode", "serial"] as const).map((target) => photos[target] && <ScanPhotoCard key={photos[target].id} photo={photos[target]} />)}</details>}
+    {Object.keys(photos).length > 0 && <>
+      <details className="banknote-photo-review"><summary>Enlarge banknote crops</summary><div className="banknote-enlarged-crops">{(["printerCode", "serial"] as const).map((target) => <div key={target}><span>{target === "printerCode" ? "Printer code" : "Serial number"}</span>{photos[target] ? <img src={photos[target].image} alt={`Enlarged ${target === "printerCode" ? "printer code" : "serial number"} crop: ${photos[target].value}`} /> : <small>No captured crop</small>}</div>)}</div></details>
+      <button type="button" disabled={downloading} onClick={async () => {
+        setDownloading(true); setDownloadError("");
+        try { await downloadBanknote(note, photos); }
+        catch { setDownloadError("Banknote download failed. Try again."); }
+        finally { setDownloading(false); }
+      }}>{downloading ? "Preparing banknote…" : "Download banknote"}</button>
+      {downloadError && <p role="alert">{downloadError}</p>}
+    </>}
   </div>;
 }

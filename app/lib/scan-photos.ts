@@ -56,11 +56,6 @@ async function changePhotos(change: (store: IDBObjectStore) => void, notify = tr
   if (notify) window.dispatchEvent(new Event("ebt-scan-photos-changed"));
 }
 
-export async function saveScanPhoto(photo: ScanPhoto) {
-  const cropped = await codeCropOnly(photo);
-  return changePhotos((store) => { store.put(cropped); });
-}
-
 async function codeCropOnly(photo: ScanPhoto): Promise<ScanPhoto> {
   if (photo.cropVersion === 1) return photo;
   if (!photo.image.startsWith("data:image/jpeg;base64,")) throw new Error("Invalid saved code image.");
@@ -86,10 +81,6 @@ async function upgradePhoto(photo: ScanPhoto): Promise<ScanPhoto> {
   return cropped;
 }
 
-export function deleteScanPhoto(id: string) {
-  return changePhotos((store) => { store.delete(id); });
-}
-
 export function clearScanPhotos() {
   return changePhotoCards((transaction) => {
     transaction.objectStore("photos").clear();
@@ -111,15 +102,18 @@ async function changePhotoCards(change: (transaction: IDBTransaction) => void): 
   window.dispatchEvent(new Event("ebt-scan-photos-changed"));
 }
 
-export function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>) {
+export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>) {
+  const crops: Partial<Record<ScanTarget, ScanPhoto>> = {};
+  for (const target of ["printerCode", "serial"] as const) if (photos[target]) crops[target] = await codeCropOnly(photos[target]);
   return changePhotoCards((transaction) => {
+    for (const crop of Object.values(crops)) transaction.objectStore("photos").put(crop);
     const store = transaction.objectStore("cards");
     const request = store.get(note.id);
     request.onsuccess = () => {
       const previous = request.result as ScanNoteCard | undefined;
       store.put({ ...previous, ...note,
-        printerPhotoId: photos.printerCode?.id ?? previous?.printerPhotoId,
-        serialPhotoId: photos.serial?.id ?? previous?.serialPhotoId });
+        printerPhotoId: crops.printerCode?.id ?? previous?.printerPhotoId,
+        serialPhotoId: crops.serial?.id ?? previous?.serialPhotoId });
     };
   });
 }
@@ -188,30 +182,29 @@ export async function listScanNoteCards(search = "", before?: Pick<ScanNoteCard,
   } finally { db.close(); }
 }
 
-export async function listScanPhotos(search = "", before?: Pick<ScanPhoto, "capturedAt" | "id">): Promise<{ photos: ScanPhoto[]; more: boolean }> {
-  const db = await openPhotos();
-  try {
-    const page = await new Promise<{ photos: ScanPhoto[]; more: boolean }>((resolve, reject) => {
-      const transaction = db.transaction("photos", "readonly");
-      const range = before ? IDBKeyRange.upperBound([before.capturedAt, before.id], true) : undefined;
-      const request = transaction.objectStore("photos").index("captured").openCursor(range, "prev");
-      const photos: ScanPhoto[] = [];
-      const query = search.trim().toUpperCase();
-      let more = false;
-      request.onsuccess = () => {
-        const cursor = request.result;
-        if (!cursor) return;
-        const photo = cursor.value as ScanPhoto;
-        if (photo.image.startsWith("data:image/jpeg;base64,") && (!query || photo.value.includes(query) || photo.printerCode.includes(query))) {
-          if (photos.length === 20) { more = true; return; }
-          photos.push(photo);
-        }
+
+// Remove one banknote and its crops atomically, preserving crops reused by other notes.
+export function deleteScanNoteCard(id: string) {
+  return changePhotoCards((transaction) => {
+    const cards = transaction.objectStore("cards");
+    cards.delete(id);
+    const used = new Set<string>();
+    const request = cards.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        if (cursor.value.printerPhotoId) used.add(cursor.value.printerPhotoId);
+        if (cursor.value.serialPhotoId) used.add(cursor.value.serialPhotoId);
         cursor.continue();
+        return;
+      }
+      const photos = transaction.objectStore("photos").openCursor();
+      photos.onsuccess = () => {
+        const photo = photos.result;
+        if (!photo) return;
+        if (!used.has(String(photo.key))) photo.delete();
+        photo.continue();
       };
-      transaction.oncomplete = () => resolve({ photos, more });
-      transaction.onabort = () => reject(transaction.error);
-      transaction.onerror = () => reject(transaction.error);
-    });
-    return { ...page, photos: await Promise.all(page.photos.map(upgradePhoto)) };
-  } finally { db.close(); }
+    };
+  });
 }

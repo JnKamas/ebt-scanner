@@ -7,8 +7,8 @@ import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-
 import { EbtAccount, Receipt, SubmissionResult, submissionStatus } from "../lib/ebt";
 import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
-import SavedScanPhotos, { ScanPhotoCard } from "./scan-photo-cards";
-import { saveScanPhoto, saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
+import SavedScanPhotos from "./scan-photo-cards";
+import { saveScanNoteCard, markScanNoteSubmitted, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
@@ -73,7 +73,6 @@ export default function EbtScanner({ version }: { version: string }) {
   const [previewReady, setPreviewReady] = useState(false);
   const [scanResult, setScanResult] = useState<FrozenScan | null>(null);
   const [latestPhotos, setLatestPhotos] = useState<Partial<Record<ScanTarget, ScanPhoto>>>({});
-  const [unsavedPhotos, setUnsavedPhotos] = useState<ScanPhoto[]>([]);
   const [unsavedCards, setUnsavedCards] = useState<Array<{ note: Note; photos: Partial<Record<ScanTarget, ScanPhoto>>; submitted: boolean }>>([]);
   const photoWritesRef = useRef<Promise<void>>(Promise.resolve());
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
@@ -443,15 +442,6 @@ export default function EbtScanner({ version }: { version: string }) {
     }
   }
 
-  async function storeScanPhoto(photo: ScanPhoto) {
-    try {
-      await saveScanPhoto(photo);
-      setUnsavedPhotos((current) => current.filter((item) => item.id !== photo.id));
-    } catch {
-      setUnsavedPhotos((current) => current.some((item) => item.id === photo.id) ? current : [...current, photo]);
-    }
-  }
-
   function finishLiveScan(target: ScanTarget, match: ScanMatch, image: string, width: number, height: number) {
     cameraActiveRef.current = false;
     if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
@@ -465,7 +455,6 @@ export default function EbtScanner({ version }: { version: string }) {
     setScanResult({ ...match, target, image, width, height });
     const photo: ScanPhoto = { ...match, target, image, width, height, cropVersion: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
     setLatestPhotos((current) => ({ ...current, [target]: photo }));
-    queuePhotoWrite(() => storeScanPhoto(photo));
     const finishAt = Date.now() + resultDisplaySeconds * 1000;
     setResultSecondsRemaining(resultDisplaySeconds);
     resultCountdownRef.current = window.setInterval(() => {
@@ -816,13 +805,12 @@ export default function EbtScanner({ version }: { version: string }) {
           </div>
           <p className="camera-hint">{previewReady && <i />} {previewReady ? cameraHint : cameraPending ? "Allow camera access if your browser asks." : "Getting the preview ready..."}</p>
         </>}
-        {!cameraPreviewOnly && !scanResult && scanTarget === "serial" && latestPhotos.printerCode && <details className="previous-scan-photo" open><summary>Printer code photo: {latestPhotos.printerCode.value}</summary><ScanPhotoCard photo={latestPhotos.printerCode} /></details>}
+        {!cameraPreviewOnly && !scanResult && scanTarget === "serial" && latestPhotos.printerCode && <details className="previous-scan-photo" open><summary>Printer code photo: {latestPhotos.printerCode.value}</summary><img src={latestPhotos.printerCode.image} alt={`Printer code crop: ${latestPhotos.printerCode.value}`} /></details>}
       </div>}
 
-    {(unsavedPhotos.length > 0 || unsavedCards.length > 0) && <p className="notice" role="alert">Scan photos or banknote cards could not be saved. Keep this page open and free browser storage. Your note queue is separate. <button type="button" onClick={() => {
-      unsavedPhotos.forEach((photo) => queuePhotoWrite(() => storeScanPhoto(photo)));
+    {unsavedCards.length > 0 && <p className="notice" role="alert">Banknote records could not be saved. Keep this page open and free browser storage. Your queue is separate. <button type="button" onClick={() => {
       unsavedCards.forEach(({ note, photos, submitted }) => queuePhotoWrite(() => storePhotoCard(note, photos, submitted)));
-    }}>Retry saving photos</button></p>}
+    }}>Retry saving banknotes</button></p>}
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
@@ -843,7 +831,7 @@ export default function EbtScanner({ version }: { version: string }) {
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" aria-invalid={Boolean(draft.serial) && !serialOk} />
         </div>
       </div>
-      {Object.keys(latestPhotos).length > 0 && <section className="latest-scan-photos" aria-label="Latest scan photos"><h3>Latest scan photos</h3><p>Captured values are shown on each photo. Compare them with your editable fields above.</p>{(["printerCode", "serial"] as const).map((target) => latestPhotos[target] && <ScanPhotoCard key={latestPhotos[target].id} photo={latestPhotos[target]} />)}</section>}
+      {Object.keys(latestPhotos).length > 0 && <section className="latest-scan-photos" aria-label="Current banknote"><h3>Current banknote</h3><p>Both code crops stay together. Add the banknote to the queue to save this record.</p><BanknotePhotoCard note={{ ...draft, id: "current-banknote", createdAt: (latestPhotos.serial ?? latestPhotos.printerCode)!.capturedAt }} photos={latestPhotos} status="Review before adding to queue" /></section>}
       <button className="save" onClick={() => addNote()} disabled={!storageReady}>Add note to queue <span>→</span></button>
       {message && <p className="notice" role="status">{message}</p>}
       <a className="location-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
