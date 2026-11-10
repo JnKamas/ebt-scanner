@@ -9,7 +9,7 @@ import BanknoteFlag from "./banknote-flag";
 import BanknotePhotoCard from "./banknote-photo-card";
 import CaptureCodeValue from "./capture-code-value";
 import BanknoteQueueList from "./banknote-queue-list";
-import { saveScanNoteCard, ScanPhoto } from "../lib/scan-photos";
+import { saveScanNoteCard, deleteScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
 import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
@@ -444,7 +444,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     const pairedPhotos = { ...pendingCardCropsRef.current[note.id], ...photos };
     pendingCardCropsRef.current[note.id] = pairedPhotos;
     try {
-      await saveScanNoteCard(note, pairedPhotos, submitted);
+      if (submitted) await deleteScanNoteCard(note.id);
+      else await saveScanNoteCard(note, pairedPhotos);
       delete pendingCardCropsRef.current[note.id];
       setUnsavedCards((current) => current.filter((item) => item.note.id !== note.id));
     } catch {
@@ -769,8 +770,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           const submittedNote = batch.find((note) => note.id === result.id);
           if (submittedNote) queuePhotoWrite(() => storePhotoCard(submittedNote, {}, true));
         }
-        // Finish archiving before removing accepted notes from the queue.
-        // A reload after the queue updates must also show their submitted records.
+        // Remove accepted records and their unshared crops before updating Queue.
         await photoWritesRef.current;
         const remaining = notesRef.current.filter((note) => !successful.some(({ id }) => id === note.id));
         setNotes(remaining);
@@ -840,9 +840,9 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
         {!cameraPreviewOnly && !scanResult && scanTarget === "serial" && latestPhotos.printerCode && <details className="previous-scan-photo" open><summary>Printer code photo: {latestPhotos.printerCode.value}</summary><img src={latestPhotos.printerCode.image} alt={`Printer code crop: ${latestPhotos.printerCode.value}`} /></details>}
       </div>}
 
-    {unsavedCards.length > 0 && <p className="notice" role="alert">Banknote records could not be saved. Keep this page open and free browser storage. Your queue is separate. <button type="button" onClick={() => {
+    {unsavedCards.length > 0 && <p className="notice" role="alert">{unsavedCards.some((item) => item.submitted) ? "Some submitted records could not be removed. Retry local cleanup; do not resubmit them to EBT." : "Banknote records could not be saved. Keep this page open and free browser storage. Your queue is separate."} <button type="button" onClick={() => {
       unsavedCards.forEach(({ note, photos, submitted }) => queuePhotoWrite(() => storePhotoCard(note, photos, submitted)));
-    }}>Retry saving banknotes</button></p>}
+    }}>{unsavedCards.some((item) => item.submitted) ? "Retry local cleanup" : "Retry saving banknotes"}</button></p>}
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}

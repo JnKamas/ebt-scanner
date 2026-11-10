@@ -178,12 +178,12 @@ for (const status of [null, false, '', []]) {
     await page.goto('/');
     await page.getByRole('button', { name: /^Queue/ }).click();
     await page.getByRole('button', { name: 'Submit queue (2)' }).click();
-    await expect(page.locator('.note-list article')).toHaveCount(2);
+    await expect(page.locator('.note-list article')).toHaveCount(1);
     await expect(page.locator('.submission-receipts')).toContainText('EBT did not confirm this note');
     await expect(page.getByRole('button', { name: 'I checked EBT; allow retry' })).toBeVisible();
     await page.reload();
     await page.getByRole('button', { name: /^Queue/ }).click();
-    await expect(page.locator('.note-list article')).toHaveCount(2);
+    await expect(page.locator('.note-list article')).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Submit queue (1)' })).toBeDisabled();
   });
 }

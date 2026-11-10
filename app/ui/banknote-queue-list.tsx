@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Note } from "../lib/note-validation";
-import { deleteScanNoteCard, listScanNoteCards, ScanNoteCard, type ScanPhoto } from "../lib/scan-photos";
+import { deleteScanNoteCard, deleteSubmittedScanNoteCards, listScanNoteCards, ScanNoteCard, type ScanPhoto } from "../lib/scan-photos";
 import type { ScanTarget } from "../lib/banknote-scan";
 import BanknotePhotoCard from "./banknote-photo-card";
 
@@ -40,7 +40,7 @@ export default function BanknoteQueueList({ notes, uncertainIds, isSubmitting, e
     if (demo) return;
     const request = ++requestRef.current;
     setBusy(true);
-    void listScanNoteCards().then((page) => {
+    void deleteSubmittedScanNoteCards().then(() => listScanNoteCards()).then((page) => {
       if (request !== requestRef.current) return;
       setSaved(page.cards); setMore(page.more); setError("");
     }).catch(() => {

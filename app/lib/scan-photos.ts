@@ -88,7 +88,7 @@ export function clearScanPhotos() {
   });
 }
 
-async function changePhotoCards(change: (transaction: IDBTransaction) => void): Promise<void> {
+async function changePhotoCards(change: (transaction: IDBTransaction) => void, notify = true): Promise<void> {
   const db = await openPhotos();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -99,10 +99,10 @@ async function changePhotoCards(change: (transaction: IDBTransaction) => void): 
       change(transaction);
     });
   } finally { db.close(); }
-  window.dispatchEvent(new Event("ebt-scan-photos-changed"));
+  if (notify) window.dispatchEvent(new Event("ebt-scan-photos-changed"));
 }
 
-export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>, submitted = false) {
+export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTarget, ScanPhoto>>) {
   const crops: Partial<Record<ScanTarget, ScanPhoto>> = {};
   for (const target of ["printerCode", "serial"] as const) if (photos[target]) crops[target] = await codeCropOnly(photos[target]);
   return changePhotoCards((transaction) => {
@@ -112,7 +112,6 @@ export async function saveScanNoteCard(note: Note, photos: Partial<Record<ScanTa
     request.onsuccess = () => {
       const previous = request.result as ScanNoteCard | undefined;
       store.put({ ...previous, ...note,
-        submittedAt: submitted ? previous?.submittedAt ?? new Date().toISOString() : previous?.submittedAt,
         printerPhotoId: crops.printerCode?.id ?? previous?.printerPhotoId,
         serialPhotoId: crops.serial?.id ?? previous?.serialPhotoId });
     };
@@ -176,16 +175,27 @@ export async function listScanNoteCards(search = "", before?: Pick<ScanNoteCard,
 
 // Remove one banknote and its crops atomically, preserving crops reused by other notes.
 export function deleteScanNoteCard(id: string) {
+  return deleteMatchingCards((card) => card.id === id);
+}
+
+// Retire submitted history saved by earlier versions as well.
+export function deleteSubmittedScanNoteCards() {
+  return deleteMatchingCards((card) => Boolean(card.submittedAt), false);
+}
+
+function deleteMatchingCards(matches: (card: ScanNoteCard) => boolean, notify = true) {
   return changePhotoCards((transaction) => {
     const cards = transaction.objectStore("cards");
-    cards.delete(id);
     const used = new Set<string>();
     const request = cards.openCursor();
     request.onsuccess = () => {
       const cursor = request.result;
       if (cursor) {
-        if (cursor.value.printerPhotoId) used.add(cursor.value.printerPhotoId);
-        if (cursor.value.serialPhotoId) used.add(cursor.value.serialPhotoId);
+        if (matches(cursor.value)) cursor.delete();
+        else {
+          if (cursor.value.printerPhotoId) used.add(cursor.value.printerPhotoId);
+          if (cursor.value.serialPhotoId) used.add(cursor.value.serialPhotoId);
+        }
         cursor.continue();
         return;
       }
@@ -197,5 +207,5 @@ export function deleteScanNoteCard(id: string) {
         photo.continue();
       };
     };
-  });
+  }, notify);
 }

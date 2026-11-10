@@ -9,7 +9,7 @@ Next version: **1.3.2**.
 - Prepared 1.3.2 development after the 1.3.1 release.
 - Match displayed printer and serial code sizes to their photographed OCR boxes in scan results and banknote cards.
 - Move Submit queue and submission notices above the banknote list.
-- Save submission status atomically with the banknote record and finish local archiving before removing confirmed notes from the queue.
+- Remove confirmed submitted notes and their unshared code crops from this browser, including submitted history from earlier versions; rejected and uncertain notes remain queued.
 - Make banknote cards more compact while preserving matching crop and code sizes.
 - Add an isolated visual demo on develop previews with fake notes, submissions, rejections and hit journeys; production has no demo controls or accessible demo page.
 

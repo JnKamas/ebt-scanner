@@ -54,7 +54,7 @@ async function seed(page, count, legacy = false) {
   }, { count, legacy, note });
 }
 
-test('complete scans queue one banknote with paired crops, inline editing and persistent submission status', async ({ page }) => {
+test('complete scans retain paired crops for review and remove the banknote after confirmed submission', async ({ page }) => {
   await start(page, { signedIn: true });
   await fillLocation(page);
   await page.getByLabel('Comment').fill('Test shop');
@@ -88,27 +88,11 @@ test('complete scans queue one banknote with paired crops, inline editing and pe
   await inline.getByLabel('Serial number', { exact: true }).fill('X00000000011');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('.note-list')).toContainText(`Photo shows ${note.serial}`);
-  let submitted;
-  await page.route('**/api/ebt/notes', route => {
-    submitted = route.request().postDataJSON();
-    return route.fulfill({ json: { results: submitted.notes.map(note => ({ id: note.id, result: { status: 0 } })) } });
-  });
-  await page.getByRole('button', { name: /^Queue/ }).click();
-  await expect(page.locator('.note-list .code-photo')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Submit queue (1)' }).click();
-  await expect(page.locator('.note-list article')).toHaveCount(1);
-  await expect(page.locator('.banknote-queue-card .banknote-card-status')).toContainText('Submitted');
-  expect(JSON.stringify(submitted)).not.toContain('data:image');
-  expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('data:image')))).toBe(false);
   await page.reload();
   const archive = await history(page);
   await expect(archive.locator('.banknote-queue-card')).toHaveCount(1);
   await expect(archive.locator('.code-photo')).toHaveCount(2);
   await expect(archive).toContainText('Test shop');
-  await expect(archive.getByRole('button', { name: 'Download banknote', exact: true })).toHaveCount(0);
-  await expect(page.getByText('Saved banknotes', { exact: true })).toHaveCount(0);
-  await expect(archive.getByText('Enlarge banknote crops', { exact: true })).toHaveCount(0);
-  await expect(archive.getByRole('button', { name: /^Edit / })).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 760 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const values = await archive.locator('.banknote-code-pair > div > strong').evaluateAll(nodes => nodes.map(node => ({ text: node.textContent, height: node.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(node).lineHeight), width: node.getBoundingClientRect().width, textWidth: node.scrollWidth })));
@@ -132,6 +116,19 @@ test('complete scans queue one banknote with paired crops, inline editing and pe
     return Promise.all(photos.map(async photo => { const img = new Image(); img.src = photo.image; await img.decode(); return [photo.width, photo.height, img.naturalWidth, img.naturalHeight]; }));
   });
   expect(sizes).toEqual([[94, 24, 94, 24], [94, 24, 94, 24]]);
+  let submitted;
+  await page.route('**/api/ebt/notes', route => {
+    submitted = route.request().postDataJSON();
+    return route.fulfill({ json: { results: submitted.notes.map(note => ({ id: note.id, result: { status: 0 } })) } });
+  });
+  await page.getByRole('button', { name: 'Submit queue (1)' }).click();
+  await expect(page.locator('.note-list article')).toHaveCount(0);
+  expect(JSON.stringify(submitted)).not.toContain('data:image');
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
+  await page.reload();
+  await history(page);
+  await expect(page.locator('.note-list article')).toHaveCount(0);
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
 });
 
 test('camera tests do not recognize or save banknotes', async ({ page }) => {
@@ -210,7 +207,7 @@ test('older paired banknotes retain their association while wider preview captur
   expect(photos).toEqual([[44, 24, 1], [44, 24, 1]]);
 });
 
-test('submission recovery preserves a banknote crop after its initial archive save failed', async ({ page }) => {
+test('confirmed submission removes crops and pending saves after an initial record save failure', async ({ page }) => {
   await start(page, { signedIn: true });
   await printerScan(page);
   await page.getByRole('button', { name: 'Close camera' }).click();
@@ -226,10 +223,9 @@ test('submission recovery preserves a banknote crop after its initial archive sa
   await page.route('**/api/ebt/notes', route => route.fulfill({ json: { results: route.request().postDataJSON().notes.map(note => ({ id: note.id, result: { status: 0 } })) } }));
   await page.getByRole('button', { name: /^Queue/ }).click();
   await page.getByRole('button', { name: 'Submit queue (1)' }).click();
-  await expect(page.locator('.note-list article')).toHaveCount(1);
-  await expect(page.locator('.banknote-queue-card .banknote-card-status')).toContainText('Submitted');
-  await expect(page.locator('.banknote-queue-card .code-photo')).toHaveCount(1);
-  expect(await counts(page)).toEqual({ banknotes: 1, crops: 1 });
+  await expect(page.locator('.note-list article')).toHaveCount(0);
+  expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
+  await expect(page.getByRole('button', { name: 'Retry saving banknotes' })).toHaveCount(0);
 });
 
 test('automatic next-note scanning waits for the serial preview before queuing and opening the next scan', async ({ page }) => {

@@ -37,9 +37,9 @@ export default function DevelopDemo() {
   const [editing, setEditing] = useState<Note | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(0);
   const serialCounter = useRef(0);
   const queued = records.filter(({ card }) => !card.submittedAt).map(({ card }) => card);
-  const submitted = records.length - queued.length;
 
   function add(count: number) {
     const additions: DemoRecord[] = [];
@@ -57,7 +57,10 @@ export default function DevelopDemo() {
     const batch = queued.slice(0, 25);
     const submittedIds = new Set(batch.map((note) => note.id));
     setReceipts(batch.map((note, index) => ({ id: note.id, serial: note.serial, denomination: note.denomination, result: { status: reject ? 8 : hit && index === 0 ? 1 : 0, ...(hit && index === 0 ? { billId: "1" } : {}) } })));
-    if (!reject) setRecords((current) => current.map((record) => submittedIds.has(record.card.id) ? { ...record, card: { ...record.card, submittedAt: new Date().toISOString() } } : record));
+    if (!reject) {
+      setRecords((current) => current.filter((record) => !submittedIds.has(record.card.id)));
+      setSubmitted((current) => current + batch.length);
+    }
     setMessage(reject ? "Demo rejection: notes remain queued." : `Simulated ${batch.length} submitted notes${hit ? ", including one hit" : ""}.`);
   }
 
@@ -65,7 +68,7 @@ export default function DevelopDemo() {
     <header className="topbar"><div className="brand">EBT Scanner · Visual demo</div><Link href="/">Back to scanner</Link></header>
     <section className="demo-controls" aria-label="Visual demo controls">
       <h1>Try the banknote list</h1><p>Made-up notes and hits. Nothing is sent to EBT or stored in your banknote history. Reload or Reset to clear the demo.</p>
-      <div><button onClick={() => add(1)}>Add fake banknote</button><button onClick={() => add(5)}>Add 5 fake banknotes</button><button onClick={() => submit(true)} disabled={!queued.length || Boolean(editing)}>Simulate hit</button><button onClick={() => submit(false, true)} disabled={!queued.length || Boolean(editing)}>Simulate rejection</button><button onClick={() => { setRecords([]); setReceipts([]); setEditing(null); setMessage(""); }}>Reset demo</button></div>
+      <div><button onClick={() => add(1)}>Add fake banknote</button><button onClick={() => add(5)}>Add 5 fake banknotes</button><button onClick={() => submit(true)} disabled={!queued.length || Boolean(editing)}>Simulate hit</button><button onClick={() => submit(false, true)} disabled={!queued.length || Boolean(editing)}>Simulate rejection</button><button onClick={() => { setRecords([]); setReceipts([]); setSubmitted(0); setEditing(null); setMessage(""); }}>Reset demo</button></div>
     </section>
     <section className="queue-panel">
       <div className="queue-total"><div><span>{queued.length}</span><small>notes queued</small></div><div><span>{submitted}</span><small>notes submitted</small></div></div>

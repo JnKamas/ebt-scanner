@@ -19,7 +19,7 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
 - Drafts and queued notes live in browser local storage. Anyone with access to
   that browser profile may be able to read them.
 - Banknote records and their code crops (including location and comment) stay
-  in this browser after submission or queue clearing.
+  in this browser until confirmed submission or manual deletion. Reused crops stay while another note references them.
   Delete each banknote and its crops from its card in Queue; photo images are never uploaded.
 - Authenticated responses are not cached. The app requires internet access.
 - Version 1.2.1 binds submissions to the displayed sign-in using HMAC-SHA256

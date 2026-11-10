@@ -28,8 +28,7 @@ test('the development demo uses real cards and hit journeys without EBT or bankn
   await expect(page.getByRole('heading', { name: 'Last submission: 1 hit' })).toBeVisible();
   await expect(page.locator('.hit-journey')).toContainText('Vienna');
   await expect(page.locator('.hit-journey')).toContainText('Bratislava');
-  await expect(page.locator('.note-list article')).toHaveCount(5);
-  for (const status of await page.locator('.banknote-card-status').allTextContents()) expect(status).toContain('Submitted');
+  await expect(page.locator('.note-list article')).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 760 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Reset demo', exact: true }).click();
