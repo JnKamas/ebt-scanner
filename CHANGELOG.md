@@ -12,6 +12,7 @@ Next version: **1.3.2**.
 - Remove confirmed submitted notes and their unshared code crops from this browser, including submitted history from earlier versions; rejected and uncertain notes remain queued.
 - Make banknote cards more compact while preserving matching crop and code sizes.
 - Keep a single timestamp in each banknote heading and show location and comment side by side.
+- Fit displayed codes closely to their scanned character size while preserving natural letter and digit proportions.
 - Add an isolated visual demo on develop previews with fake notes, submissions, rejections and hit journeys; production has no demo controls or accessible demo page.
 
 ## [1.3.1] - 2026-11-10
