@@ -4,13 +4,14 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.3.4**.
+## [1.3.4] - 2026-11-15
 
 - Prepared 1.3.3 development after the 1.3.2 release.
 - Expand fast unit coverage for both serial checksums, printer formats and OCR corrections, confidence and fragment boundaries, field limits and server-side submission validation.
 - Apply city, postcode and comment suggestions on completed taps even when the browser omits a click; retain keyboard selection.
 - Give each address lookup its own timeout and explain timeouts, connection failures and rate limiting without raw abort errors.
 - Reuse recently loaded EBT suggestions within the current account's entry fields.
+- Updated release documentation for 1.3.4.
 
 ## [1.3.2] - 2026-11-10
 

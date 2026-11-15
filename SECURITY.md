@@ -21,12 +21,13 @@ If a credential leaked, revoke or change it; deleting a commit is not enough.
 - Banknote records and their code crops (including location and comment) stay
   in this browser until confirmed submission or manual deletion. Reused crops stay while another note references them.
   Delete each banknote and its crops from its card in Queue; photo images are never uploaded.
-- Authenticated responses are not cached. The app requires internet access.
+- Authenticated HTTP responses use no-store. Entry fields reuse suggestions in
+  memory for up to five minutes within the mounted account's fields. The app requires internet access.
 - Version 1.2.1 binds submissions to the displayed sign-in using HMAC-SHA256
   with a private server key. Fingerprints stay in tab memory; the key is never
   sent to the browser. Missing keys block sign-in and submission. Rotating the
   key requires open tabs to reload; it does not revoke EBT sessions.
 
-Production release **1.3.2** is on `main`. This volunteer project cannot promise
+Production release **1.3.4** is on `main`. This volunteer project cannot promise
 response times. Tests are not an independent security audit; see
 [Testing](REVIEW.md) for the checks performed.
