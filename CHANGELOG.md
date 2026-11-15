@@ -7,6 +7,7 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.3.3**.
 
 - Prepared 1.3.3 development after the 1.3.2 release.
+- Expand fast unit coverage for both serial checksums, printer formats and OCR corrections, confidence and fragment boundaries, field limits and server-side submission validation.
 
 ## [1.3.2] - 2026-11-10
 

@@ -59,6 +59,69 @@ test('submission validates checksum, limits, batch size, duplicate IDs and locat
   assert.equal(target.calls[0].serial0, note.serial);
 });
 
+test('submission rejects invalid note fields and unnormalized codes without contacting EBT', async () => {
+  // Load the route once for this matrix; avoid repeated TypeScript transpilation.
+  const target = api('notes');
+  const invalid = [null, [], 'note', {},
+    ...['', 'X00000000000', 'MA0000000000', 'X0000000000', 'MA00000000020', 'X00000000002X',
+      'x00000000002', 'X 00000000002', 'X00000000002!'].map(serial => ({ ...note, serial })),
+    ...['', 'R001A0', 'R001A10', '1001A1', 'R00111', 'r001a1', 'R 001A1', 'R001A1!'].map(printerCode => ({ ...note, printerCode })),
+    ...['', '1', '25', '1000', '05', '20.0'].map(denomination => ({ ...note, denomination })),
+    ...['', ' ', '\t'].flatMap(value => ['country', 'city'].map(field => ({ ...note, [field]: value }))),
+    ...['', 'x'.repeat(101), null, 1].map(id => ({ ...note, id })),
+  ];
+  for (const field of Object.keys(note).filter(field => field !== 'id')) {
+    for (const value of [undefined, null, 1, false, [], {}]) invalid.push({ ...note, [field]: value });
+  }
+  for (const [field, max] of [['country', 100], ['city', 100], ['postalCode', 50], ['comment', 500]]) {
+    invalid.push({ ...note, [field]: 'x'.repeat(max + 1) });
+    for (const code of [...Array.from({ length: 32 }, (_, index) => index), 127]) {
+      invalid.push({ ...note, [field]: `a${String.fromCharCode(code)}b` });
+    }
+  }
+  for (const entry of invalid) {
+    const response = await target.POST(request({ notes: [entry] }));
+    assert.equal(response.status, 400, JSON.stringify(entry));
+    assert.equal(target.calls.length, 0, 'Invalid data must never reach EBT');
+  }
+});
+
+test('submission accepts both series, all denominations and maximum field lengths unchanged', async () => {
+  const target = api('notes');
+  for (const serial of ['X00000000002', 'MA0000000002']) {
+    for (const denomination of ['5', '10', '20', '50', '100', '200', '500']) {
+      const entry = { ...note, serial, denomination, id: 'i'.repeat(100), country: 'c'.repeat(100), city: 'v'.repeat(100), postalCode: 'p'.repeat(50), comment: 'm'.repeat(500) };
+      assert.equal((await target.POST(request({ notes: [entry] }))).status, 200);
+      const sent = target.calls.at(-1);
+      assert.equal(sent.serial0, serial);
+      assert.equal(sent.shortcode0, entry.printerCode);
+      assert.equal(sent.denomination0, denomination);
+      assert.equal(sent.country, entry.country);
+      assert.equal(sent.city, entry.city);
+      assert.equal(sent.zip, entry.postalCode);
+      assert.equal(sent.comment0, entry.comment);
+    }
+  }
+  assert.equal(target.calls.length, 14);
+});
+
+test('submission accepts 25 unique IDs, rejects 26, and requires every location component to match', async () => {
+  const target = api('notes');
+  const batch = Array.from({ length: 25 }, (_, index) => ({ ...note, id: `fixture-${index}` }));
+  assert.equal((await target.POST(request({ notes: batch }))).status, 200);
+  assert.equal(target.calls.length, 1);
+  assert.equal(target.calls[0].serial24, note.serial);
+  assert.equal(target.calls[0].serial25, undefined);
+  const invalid = [[], [...batch, { ...note, id: 'fixture-25' }], [note, note]];
+  for (const field of ['country', 'city', 'postalCode']) {
+    invalid.push([note, { ...note, id: 'two', [field]: 'different' }]);
+  }
+  for (const notes of invalid) {
+    assert.equal((await target.POST(request({ notes }))).status, 400);
+    assert.equal(target.calls.length, 1);
+  }
+});
+
 test('lost upstream responses preserve an explicitly unknown submission outcome', async () => {
   let inserted = false;
   const target = api('notes', () => { inserted = true; throw new Error('response lost'); });
