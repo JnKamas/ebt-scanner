@@ -48,8 +48,16 @@ const assert = require('node:assert/strict');
     // A pointer interaction must keep its suggestion alive until activation.
     await page.evaluate(() => {
       document.addEventListener('pointerdown', (event) => {
-        if (!event.defaultPrevented && event.target.closest('.field-suggestions button')) document.activeElement?.blur();
+        if (event.target.closest('.field-suggestions li button')) document.activeElement?.blur();
       });
+      // Reproduce a touch browser omitting the compatibility click. A completed
+      // pointer tap must still apply the whole location, while Enter still works.
+      document.addEventListener('click', (event) => {
+        if (event.detail > 0 && event.target.closest('.field-suggestions li button')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
     });
     await page.getByRole('textbox', { name: 'City', exact: true }).click();
     const alternate = page.getByRole('button', { name: /Bratislava.*Slovakia.*81101/ });

@@ -1,26 +1,42 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { EbtCity, EbtComment, EbtJourney, EbtProfile, Receipt, submissionMessage, submissionStatus } from "../lib/ebt";
 
-function useEbtData<T>(url: string | null) {
+function useEbtData<T>(url: string | null, cacheSuggestions = false) {
   const [state, setState] = useState<{ url: string | null; data?: T; error?: string; loading: boolean }>({ url: null, loading: false });
   const [attempt, setAttempt] = useState(0);
+  // Private to this mounted account's fields; never shared across sign-ins.
+  const cache = useRef(new Map<string, { data: T; expires: number }>());
   useEffect(() => {
     if (!url) return;
+    const cached = cache.current.get(url);
+    if (cacheSuggestions && cached && cached.expires > Date.now()) {
+      setState({ url, data: cached.data, loading: false });
+      return;
+    }
     const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let active = true;
     setState({ url, loading: true });
     void fetch(url, { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "EBT could not be reached.");
-      if (!controller.signal.aborted) setState({ url, data: body, loading: false });
+      if (!controller.signal.aborted) {
+        if (cacheSuggestions) {
+          if (cache.current.size >= 40) cache.current.delete(cache.current.keys().next().value!);
+          cache.current.set(url, { data: body, expires: Date.now() + 5 * 60 * 1000 });
+        }
+        setState({ url, data: body, loading: false });
+      }
     }).catch((error) => {
-      if (!controller.signal.aborted) setState({ url, error: error instanceof Error ? error.message : "EBT could not be reached.", loading: false });
-    });
-    return () => controller.abort();
-  }, [url, attempt]);
+      if (active) setState({ url, error: controller.signal.aborted ? "EBT took too long to respond. Keep entering manually or retry." : error instanceof Error ? error.message : "EBT could not be reached.", loading: false });
+    }).finally(() => clearTimeout(timer));
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
+  }, [url, attempt, cacheSuggestions]);
   // Never show a previous location's suggestions while the new request starts.
-  return { ...(state.url === url ? state : { loading: Boolean(url), data: undefined as T | undefined, error: undefined as string | undefined }), retry: () => setAttempt((value) => value + 1) };
+  const cached = url && cacheSuggestions ? cache.current.get(url) : undefined;
+  return { ...(cached && cached.expires > Date.now() ? { data: cached.data, loading: false, error: undefined } : state.url === url ? state : { loading: Boolean(url), data: undefined as T | undefined, error: undefined as string | undefined }), retry: () => { if (url) cache.current.delete(url); setAttempt((value) => value + 1); } };
 }
 
 function LoadStatus({ loading, error, retry }: { loading: boolean; error?: string; retry: () => void }) {
@@ -37,8 +53,10 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
 }) {
   const [focused, setFocused] = useState(false);
   const [filtering, setFiltering] = useState(false);
+  const pointerInteraction = useRef(false);
   const matches = suggestions.filter((item) => !filtering || `${item.label} ${item.detail || ""}`.toLocaleLowerCase().includes(value.toLocaleLowerCase())).slice(0, 5);
   const listId = useId();
+  const choose = (item: Suggestion) => { item.choose(); pointerInteraction.current = false; setFocused(false); };
   const shared = {
     id, value, placeholder, autoComplete: autoComplete || "off",
     onFocus: () => { setFocused(true); setFiltering(false); },
@@ -48,16 +66,20 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
     "aria-describedby": focused && (matches.length || loading || error) ? listId : undefined,
   };
   return <div className={multiline ? "comment suggested-field" : "suggested-field"} onBlur={(event) => {
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+    if (!pointerInteraction.current && !event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
   }}>
     <label htmlFor={id}>{label}{multiline && <> <span>optional</span></>}</label>
     {multiline ? <textarea {...shared} rows={2} /> : <input {...shared} />}
     {focused && <div id={listId} className="field-suggestions" onPointerDown={(event) => {
       // Keep the input focused until a suggestion or Retry click completes.
       // Some browsers blur it without focusing the button, hiding it too soon.
-      if ((event.target as HTMLElement).closest("button")) event.preventDefault();
-    }}>
-      {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onClick={() => { item.choose(); setFocused(false); }}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
+      if ((event.target as HTMLElement).closest("button")) { pointerInteraction.current = true; event.preventDefault(); }
+    }} onPointerUp={() => { pointerInteraction.current = false; }} onPointerCancel={() => { pointerInteraction.current = false; }}>
+      {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onPointerUp={(event) => {
+        // Touch browsers can omit the compatibility click after preventing blur.
+        // Pointer-up applies a completed tap; a scroll sends pointercancel.
+        if (event.isPrimary && event.button === 0) { event.preventDefault(); choose(item); }
+      }} onClick={() => choose(item)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
       <LoadStatus loading={loading} error={error} retry={retry} />
     </div>}
   </div>;
@@ -74,12 +96,12 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
   onChange: (field: "city" | "country" | "postalCode" | "comment", value: string) => void;
   onChoose: (location: Location) => void;
 }) {
-  const cities = useEbtData<{ data: EbtCity[] }>(signedIn ? "/api/ebt/suggestions?kind=cities" : null);
+  const cities = useEbtData<{ data: EbtCity[] }>(signedIn ? "/api/ebt/suggestions?kind=cities" : null, true);
   const ready = signedIn && Boolean(location.city.trim() && location.country.trim());
   const query = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country }).toString() : "");
   const commentQuery = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country, zip: location.postalCode }).toString() : "");
-  const zips = useEbtData<{ data: string[] }>(query ? `/api/ebt/suggestions?kind=zipcodes&${query}` : null);
-  const comments = useEbtData<{ data: EbtComment[] }>(commentQuery ? `/api/ebt/suggestions?kind=comments&${commentQuery}` : null);
+  const zips = useEbtData<{ data: string[] }>(query ? `/api/ebt/suggestions?kind=zipcodes&${query}` : null, true);
+  const comments = useEbtData<{ data: EbtComment[] }>(commentQuery ? `/api/ebt/suggestions?kind=comments&${commentQuery}` : null, true);
   return <>
     <div className="location-card">
       <label>Country<input value={location.country} onChange={(event) => onChange("country", event.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>

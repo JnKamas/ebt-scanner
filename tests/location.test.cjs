@@ -36,6 +36,7 @@ test('lookup sends rounded coordinates without credentials and uses the nearest 
     assert.equal(calls[0].options.credentials, 'omit');
     assert.equal(calls[0].options.referrerPolicy, 'no-referrer');
     assert.equal(calls[1].url.searchParams.get('layer'), 'city');
+    assert.notEqual(calls[0].options.signal, calls[1].options.signal, 'the fallback needs a fresh timeout');
   } finally { global.fetch = original; }
 });
 
@@ -56,4 +57,27 @@ test('service failures and permission errors give different recovery instruction
   assert.match(locationPermissionMessage(1), /Allow location/);
   assert.match(locationPermissionMessage(2), /location services/);
   assert.match(locationPermissionMessage(3), /timed out/);
+});
+
+test('rate limiting and browser aborts return actionable messages', async () => {
+  const original = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: false, status: 429 });
+    await assert.rejects(locateAddress(48, 17), /too many requests.*Wait a minute/);
+    global.fetch = async () => { throw new DOMException('Fetch is aborted', 'AbortError'); };
+    await assert.rejects(locateAddress(48, 17), /Check your connection and retry/);
+  } finally { global.fetch = original; }
+});
+
+test('a slow lookup reports its timeout without a raw abort error', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = global.fetch;
+  global.fetch = async (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new DOMException('Fetch is aborted', 'AbortError')), { once: true });
+  });
+  try {
+    const rejection = assert.rejects(locateAddress(48, 17), /address lookup timed out/);
+    context.mock.timers.tick(15000);
+    await rejection;
+  } finally { global.fetch = original; }
 });

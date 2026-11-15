@@ -33,11 +33,23 @@ export async function locateAddress(latitude: number, longitude: number): Promis
   url.search = new URLSearchParams({ lat: latitude.toFixed(4), lon: longitude.toFixed(4), lang: "en", limit: "1" }).toString();
   // User-triggered requests sent directly from the browser. Coordinates are
   // never passed through the app server or saved in browser storage.
-  const signal = AbortSignal.timeout(12000);
   const read = async () => {
-    const response = await fetch(url, { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal });
-    if (!response.ok) throw new Error("The address lookup is unavailable. Try again shortly or enter your location manually.");
-    return response.json();
+    // Give each lookup its own budget, including the settlement fallback.
+    // Use a controller so older Safari versions do not need AbortSignal.timeout.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: controller.signal });
+      if (response.status === 429) throw new Error("The address service is receiving too many requests. Wait a minute before retrying, or enter your location manually.");
+      if (!response.ok) throw new Error("The address lookup is unavailable. Try again shortly or enter your location manually.");
+      return await response.json();
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error("The address lookup timed out. Try again shortly or enter your city and postcode manually.");
+      if (error instanceof Error && ["AbortError", "TimeoutError", "TypeError"].includes(error.name)) {
+        throw new Error("Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
+      }
+      throw error;
+    } finally { clearTimeout(timer); }
   };
   const nearest = await read();
   try { return addressFromPhoton(nearest); } catch {

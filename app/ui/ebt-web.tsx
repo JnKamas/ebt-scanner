@@ -625,7 +625,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           setDraft((draft) => ({ ...draft, ...location }));
           setLocationMessage("");
         } catch (error) {
-          setLocationMessage(error instanceof Error && error.name !== "TypeError" && error.name !== "TimeoutError" ? error.message : "Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
+          setLocationMessage(error instanceof Error && !["TypeError", "TimeoutError", "AbortError"].includes(error.name) ? error.message : "Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
         } finally { setIsLocating(false); }
       },
       (error) => { setIsLocating(false); setLocationMessage(locationPermissionMessage(error.code)); },
