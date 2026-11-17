@@ -13,6 +13,12 @@
   language or pull-request/feature-request templates unless the user asks.
 - Keep public docs short and factual. Preserve confirmed testing; do not add
   generic launch checklists or describe completed tests as pending.
+- Keep changelog and GitHub Release notes focused on concrete changes. Omit
+  development-version preparation and routine release-documentation bookkeeping.
+  When correcting published release notes, update the GitHub Release descriptions
+  as well as CHANGELOG.md; preserve released versions and tags.
+- Reuse the prepared Unreleased version for changes before the next release;
+  do not bump it again for each development commit.
 - Track every change in GitHub commits and a short `CHANGELOG.md` entry, including
   docs and maintenance. Keep package and lockfile versions equal. Use patch bumps
   for fixes, minor bumps for features and major bumps for breaking changes.

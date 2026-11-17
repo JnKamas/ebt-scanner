@@ -7,7 +7,7 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.3.5**.
 
 - Speed up scanning by capping the detector's longest side instead of enlarging narrow guide crops, transferring raw crop pixels to OCR and reducing the pause between attempts; preserve confidence and checksum checks.
-- Remove internal version-preparation and routine release-documentation entries from the public changelog.
+- Remove internal version-preparation and routine release-documentation entries from the public changelog and GitHub Release notes; record the release-note and development-version rules in project instructions.
 
 ## [1.3.4] - 2026-11-15
 
