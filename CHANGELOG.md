@@ -4,7 +4,7 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.3.6**.
+## [1.3.6] - 2026-11-17
 
 - Recover printer-code OCR readings with O in digit positions as 0 and S as 5, retaining format validation and the 70% confidence requirement.
 

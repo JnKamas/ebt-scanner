@@ -6,7 +6,7 @@ Automated tests cover scanning, note entry, saved drafts, sign-in and submission
 handling. They use made-up account data and simulated EBT responses. You can see the
 results in [GitHub Actions](https://github.com/JnKamas/ebt-scanner/actions).
 
-Release **1.3.5** also covers cross-tab queue edits and sign-in changes,
+Release **1.3.6** also covers cross-tab queue edits and sign-in changes,
 delayed saves, concurrent submissions and server session-key validation.
 Header version and privacy links are checked on every tab at 320px width.
 
@@ -30,3 +30,6 @@ address lookup timeouts and rate limiting, and more serial, printer and OCR boun
 
 Version 1.3.5 checks raw crop pixels and the detector's longest-side limit,
 and camera timeout handling when reading frame pixels fails.
+
+Version 1.3.6 covers position-based O/0 and S/5 printer OCR corrections,
+including confidence limits and split text boxes.
