@@ -20,6 +20,16 @@ test('low-confidence, distant and unrelated groups cannot manufacture a match', 
   assert.equal(findValidCode([item('R001A1', 10, 10, 0.7)], 'printerCode').value, 'R001A1');
 });
 
+test('printer lookalike corrections retain confidence checks and fragment boxes', () => {
+  assert.equal(findValidCode([item('RO15A1')], 'printerCode').value, 'R015A1');
+  assert.equal(findValidCode([item('RO15A1', 10, 10, 0.69)], 'printerCode'), null);
+  const match = findValidCode([item('RO1', 10), item('SA1', 65)], 'printerCode');
+  assert.equal(match.value, 'R015A1');
+  assert.equal(match.boxes.length, 2);
+  assert.deepEqual(match.confidences, [0.95, 0.95]);
+  assert.equal(findValidCode([item('RO1', 10), item('SA1', 65, 10, 0.69)], 'printerCode'), null);
+});
+
 test('serial OCR accepts complete checksummed values rather than substrings', () => {
   assert.equal(findValidCode([item('X00000000002')], 'serial').value, 'X00000000002');
   assert.equal(findValidCode([item('MA0000000002')], 'serial').value, 'MA0000000002');

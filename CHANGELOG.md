@@ -6,6 +6,8 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.6**.
 
+- Recover printer-code OCR readings with O in digit positions as 0 and S as 5, retaining format validation and the 70% confidence requirement.
+
 ## [1.3.5] - 2026-11-17
 
 - Reduce scan delays by avoiding unnecessary enlargement of camera crops, transferring pixels directly to OCR and checking new frames sooner. Confidence and checksum checks are unchanged.

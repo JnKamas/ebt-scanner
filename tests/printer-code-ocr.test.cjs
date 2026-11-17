@@ -33,7 +33,28 @@ test('position-based corrections cover each digit slot and both letter slots', (
   assert.equal(printerCodeFromOcr('R00111'), 'R001I1');
   assert.equal(printerCodeFromOcr('100111'), undefined, 'All-digit output must not invent two letters');
   for (const code of ['R001I1', 'R001L1', 'I001A1', 'L001A1']) assert.equal(printerCodeFromOcr(code), code);
-  for (const text of ['R0O1A1', 'R00ZA1', 'R001AO', 'R-001A1', 'R001A1!', 'R001A10']) {
+  for (const text of ['R00ZA1', 'R001AO', 'R-001A1', 'R001A1!', 'R001A10']) {
+    assert.equal(printerCodeFromOcr(text), undefined, text);
+  }
+});
+
+test('recovers O and S only in digit positions while preserving letters', () => {
+  assert.equal(printerCodeFromOcr('RO15A1'), 'R015A1');
+  assert.equal(printerCodeFromOcr('R01SA1'), 'R015A1');
+  assert.equal(printerCodeFromOcr('ROISA1'), 'R015A1');
+  for (const index of [1, 2, 3]) {
+    const text = [...'R000A1'];
+    text[index] = 'O';
+    assert.equal(printerCodeFromOcr(text.join('')), 'R000A1');
+  }
+  for (const index of [1, 2, 3, 5]) {
+    const text = [...'R555A5'];
+    text[index] = 'S';
+    assert.equal(printerCodeFromOcr(text.join('')), 'R555A5');
+  }
+  for (const code of ['O015S1', 'S015O1']) assert.equal(printerCodeFromOcr(code), code);
+  assert.equal(printerCodeFromOcr('SOISOI'), 'S015O1');
+  for (const text of ['R015AO', 'R015A0', 'ROISAO', '0015A1', '5015A1', 'RO15A1X']) {
     assert.equal(printerCodeFromOcr(text), undefined, text);
   }
 });
