@@ -32,6 +32,7 @@ async function setup(page, { notes = [], signedIn = false, preferences = {} } = 
         else if (message.type === 'predict') {
           window.ocrPredictions++;
           window.lastOcrSources = message.payload.sources;
+          window.lastOcrParams = message.payload.params;
           payload = [{ items: window.ocrItems }];
         } else payload = {};
         queueMicrotask(() => this.onmessage?.({ data: { kind: 'worker-transport-response', requestId: message.requestId, status: 'success', payload } }));

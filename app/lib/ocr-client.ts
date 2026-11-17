@@ -1,4 +1,5 @@
 import type { PaddleItem } from "./banknote-scan";
+import type { OcrRuntimeParamsInput } from "@paddleocr/paddleocr-js";
 
 type Result = Array<{ items: PaddleItem[] }>;
 
@@ -24,7 +25,7 @@ export async function createOcrWorker() {
     else request.reject(new Error(message.error?.message || "Recognition failed. Retry the scan."));
   };
   worker.onerror = () => failAll(new Error("Recognition worker could not start. Reload and try again, or enter the codes manually."));
-  const request = (type: string, payload: unknown) => new Promise<unknown>((resolve, reject) => {
+  const request = (type: string, payload: unknown, transfer: Transferable[] = []) => new Promise<unknown>((resolve, reject) => {
     if (closed) return reject(new Error("Recognition worker is closed."));
     const requestId = ++sequence;
     const timer = setTimeout(() => {
@@ -32,7 +33,7 @@ export async function createOcrWorker() {
       reject(new Error("Recognition timed out. Check your connection, then retry."));
     }, type === "init" ? 60000 : 30000);
     pending.set(requestId, { resolve, reject, timer });
-    try { worker.postMessage({ kind: "worker-transport-request", type, payload, requestId }); }
+    try { worker.postMessage({ kind: "worker-transport-request", type, payload, requestId }, transfer); }
     catch { clearTimeout(timer); pending.delete(requestId); reject(new Error("Could not send the captured frame to recognition.")); }
   });
   const dispose = async () => {
@@ -43,7 +44,8 @@ export async function createOcrWorker() {
   try { await request("init", {}); }
   catch (error) { await dispose(); throw error; }
   return {
-    predict: (source: Blob, params?: Record<string, number>) => request("predict", { sources: [source], params }) as Promise<Result>,
+    // Transfer the crop pixels rather than encode, copy and decode a JPEG.
+    predict: (source: ImageData, params?: OcrRuntimeParamsInput) => request("predict", { sources: [source], params }, [source.data.buffer as ArrayBuffer]) as Promise<Result>,
     dispose,
   };
 }

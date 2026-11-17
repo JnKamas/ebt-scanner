@@ -26,6 +26,11 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
   await expect(page.locator('.result-box')).toHaveCount(1);
   await expect(page.locator('#printer-code')).toHaveValue('R001I1');
   expect(await page.evaluate(() => window.cameraStops)).toBe(1);
+  expect(await page.evaluate(() => ({
+    rawPixels: window.lastOcrSources[0] instanceof ImageData,
+    limitType: window.lastOcrParams.textDetLimitType,
+    limitSideLen: window.lastOcrParams.textDetLimitSideLen,
+  }))).toEqual({ rawPixels: true, limitType: 'max', limitSideLen: 1280 });
   await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000002'));
   await page.getByRole('button', { name: /Scan serial number|Continue/ }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('X00000000002');
@@ -77,9 +82,9 @@ test('failed video playback still closes the camera after 15 seconds', async ({ 
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('failed frame encoding still closes the camera after 15 seconds', async ({ page }) => {
+test('failed frame pixel read still closes the camera after 15 seconds', async ({ page }) => {
   await ready(page);
-  await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = callback => callback(null); });
+  await page.evaluate(() => { CanvasRenderingContext2D.prototype.getImageData = () => { throw new Error('pixel read failed'); }; });
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1000));
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();

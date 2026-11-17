@@ -4,9 +4,10 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
-Next version: **1.3.5**.
+Next version: **1.3.6**.
 
 - Prepared 1.3.5 development after the 1.3.4 release.
+- Speed up scanning by capping the detector's longest side instead of enlarging narrow guide crops, transferring raw crop pixels to OCR and reducing the pause between attempts; preserve confidence and checksum checks.
 
 ## [1.3.4] - 2026-11-15
 

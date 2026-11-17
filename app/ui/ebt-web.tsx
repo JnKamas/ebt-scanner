@@ -12,7 +12,8 @@ import BanknoteQueueList from "./banknote-queue-list";
 import { saveScanNoteCard, deleteScanNoteCard, ScanPhoto } from "../lib/scan-photos";
 import { cropScanPhoto } from "../lib/scan-photo-crop";
 import { locateAddress, locationPermissionMessage } from "../lib/location";
-import { findValidCode, minimumOcrConfidence, PaddleItem, ScanMatch, ScanTarget } from "../lib/banknote-scan";
+import { findValidCode, minimumOcrConfidence, ScanMatch, ScanTarget } from "../lib/banknote-scan";
+import type { createOcrWorker } from "../lib/ocr-client";
 import { submissionBatch } from "../lib/note-queue";
 import { blankDraft, clean, denominations, isCodeValid, isSerialValid, noteErrors, Note } from "../lib/note-validation";
 import { LocalSnapshot, readLocalState, writeLocalState, writePendingSubmission } from "../lib/local-state";
@@ -21,7 +22,7 @@ type Tab = "entry" | "queue" | "profile" | "settings";
 type CameraPreference = { deviceId: string };
 const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCode: { deviceId: "" }, serial: { deviceId: "" } });
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
-type PaddleEngine = { predict: (input: Blob, options?: Record<string, number>) => Promise<Array<{ items: PaddleItem[] }>>; dispose: () => Promise<void> };
+type PaddleEngine = Awaited<ReturnType<typeof createOcrWorker>>;
 type OcrStatus = "loading" | "ready" | "error";
 
 export default function EbtScanner({ version, showDemoTools = false }: { version: string; showDemoTools?: boolean }) {
@@ -507,17 +508,20 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       const cropHeight = Math.min(sourceHeight - cropY, Math.ceil(guideHeight + verticalPadding * 2));
       canvas.width = cropWidth;
       canvas.height = cropHeight;
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) throw new Error("Camera frame could not be prepared.");
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
       context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-      const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-      if (!image || !cameraActiveRef.current || request !== cameraRequestRef.current) return;
+      const pixels = context.getImageData(0, 0, cropWidth, cropHeight);
+      if (!cameraActiveRef.current || request !== cameraRequestRef.current) return;
       setCameraHint(ocrRef.current ? "Recognizing the guide area…" : "Preparing on-device recognition…");
       const ocr = await getOcr();
       if (!cameraActiveRef.current || request !== cameraRequestRef.current) return;
-      const [result] = await ocr.predict(image, { textDetLimitSideLen: 1280, textRecScoreThresh: 0 });
+      // The SDK defaults to a minimum-side limit, which enlarges narrow guide
+      // crops toward 4000px. Cap the longest side instead; keep native pixels
+      // for recognition and the saved code crop.
+      const [result] = await ocr.predict(pixels, { textDetLimitSideLen: 1280, textDetLimitType: "max", textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
         if (target === "serial" && autoQueueNext && notesRef.current.some((note) => note.serial === match.value)) {
@@ -533,7 +537,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       if (cameraActiveRef.current && request === cameraRequestRef.current) setCameraHint("Could not read that view. Try more light or move closer.");
     } finally {
       readingFrameRef.current = false;
-      if (cameraActiveRef.current && !previewOnlyRef.current) window.setTimeout(() => void readFrame(), 350);
+      if (cameraActiveRef.current && !previewOnlyRef.current) window.setTimeout(() => void readFrame(), 50);
     }
   }
 

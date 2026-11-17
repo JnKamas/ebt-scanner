@@ -1,7 +1,8 @@
 import { PaddleOCR } from "@paddleocr/paddleocr-js";
+import type { OcrRuntimeParamsInput } from "@paddleocr/paddleocr-js";
 import cvModule from "@techstark/opencv-js";
 
-type Request = { requestId: number; type: "init" | "predict"; payload?: { sources?: Blob[]; params?: Record<string, number> } };
+type Request = { requestId: number; type: "init" | "predict"; payload?: { sources?: ImageData[]; params?: OcrRuntimeParamsInput } };
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<Request>) => void) | null;
   postMessage: (message: unknown) => void;
@@ -26,19 +27,13 @@ scope.onmessage = async ({ data }) => {
       // The SDK has already initialized it; awaiting that thenable can hang.
       const cv = cvModule instanceof Promise ? await cvModule : cvModule;
       const results = [];
-      for (const source of data.payload.sources) {
-        const bitmap = await createImageBitmap(source);
+      for (const pixels of data.payload.sources) {
         let mat: InstanceType<typeof cv.Mat> | undefined;
         try {
-          const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-          const context = canvas.getContext("2d", { willReadFrequently: true });
-          if (!context) throw new Error("Could not prepare the captured frame for recognition.");
-          context.drawImage(bitmap, 0, 0);
-          const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height);
           // Supply the SDK's supported Mat input; its Blob adapter needs a DOM.
           mat = cv.matFromArray(pixels.height, pixels.width, cv.CV_8UC4, pixels.data);
           results.push(...await engine.predict(mat, data.payload.params));
-        } finally { mat?.delete(); bitmap.close(); }
+        } finally { mat?.delete(); }
       }
       payload = results;
     } else throw new Error("Recognition is not ready. Retry preparation.");
