@@ -4,6 +4,8 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.3.6**.
+
 ## [1.3.5] - 2026-11-17
 
 - Reduce scan delays by avoiding unnecessary enlargement of camera crops, transferring pixels directly to OCR and checking new frames sooner. Confidence and checksum checks are unchanged.
