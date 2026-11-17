@@ -6,22 +6,18 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.5**.
 
-- Prepared 1.3.5 development after the 1.3.4 release.
-- Corrected the development version to 1.3.5; no 1.3.5 release has been published yet.
 - Speed up scanning by capping the detector's longest side instead of enlarging narrow guide crops, transferring raw crop pixels to OCR and reducing the pause between attempts; preserve confidence and checksum checks.
+- Remove internal version-preparation and routine release-documentation entries from the public changelog.
 
 ## [1.3.4] - 2026-11-15
 
-- Prepared 1.3.3 development after the 1.3.2 release.
 - Expand fast unit coverage for both serial checksums, printer formats and OCR corrections, confidence and fragment boundaries, field limits and server-side submission validation.
 - Apply city, postcode and comment suggestions on completed taps even when the browser omits a click; retain keyboard selection.
 - Give each address lookup its own timeout and explain timeouts, connection failures and rate limiting without raw abort errors.
 - Reuse recently loaded EBT suggestions within the current account's entry fields.
-- Updated release documentation for 1.3.4.
 
 ## [1.3.2] - 2026-11-10
 
-- Prepared 1.3.2 development after the 1.3.1 release.
 - Match displayed printer and serial code sizes to their photographed OCR boxes in scan results and banknote cards.
 - Move Submit queue and submission notices above the banknote list.
 - Remove confirmed submitted notes and their unshared code crops from this browser, including submitted history from earlier versions; rejected and uncertain notes remain queued.
@@ -29,13 +25,10 @@ Next version: **1.3.5**.
 - Keep a single timestamp in each banknote heading and show location and comment side by side.
 - Fit displayed codes closely to their scanned character size while preserving natural letter and digit proportions.
 - Add an isolated visual demo on develop previews with fake notes, submissions, rejections and hit journeys; production has no demo controls or accessible demo page.
-- Updated browser regression coverage and release documentation for 1.3.2.
 
 ## [1.3.1] - 2026-11-10
 
-- Prepared 1.3.1 development after the 1.3.0 release.
 - Show the serial code and crop for the configured result duration before queuing and starting the next banknote; retain Redo scan and Continue now for both codes.
-- Updated browser regression coverage and release documentation for 1.3.1.
 - Aligned existing settings and scanner checks with the shared result duration and serial preview.
 
 ## [1.3.0] - 2026-11-10
@@ -47,25 +40,20 @@ Next version: **1.3.5**.
 - Cropped older preview images when opened and kept photo images out of submission requests.
 - Clarified that Settings camera tests do not run recognition.
 - Restricted tests to pre-main-merge checks and required successful checks on the exact release commit before publishing.
-- Updated regression coverage, including confirmed submission payloads and asynchronous record persistence, and release, testing and security notes for 1.3.0.
+- Updated regression coverage for confirmed submission payloads and asynchronous record persistence.
 
 ## [1.2.3] - 2026-11-10
 
-- Prepared 1.2.3 development after the 1.2.2 release.
 - Rejected malformed EBT insertion statuses without removing unconfirmed notes or clearing retry guards.
 - Required confirmation before clearing a non-empty local queue.
-- Updated release, testing and security notes for 1.2.3.
 
 ## [1.2.2] - 2026-11-08
 
-- Prepared 1.2.2 development after the 1.2.1 release.
 - Displayed the app version alongside About & privacy in its original header position.
 - Simplified Settings and clarified that its preferences are local to the browser and device, separate from the EBT profile.
-- Updated release, testing and security notes for 1.2.2.
 
 ## [1.2.1] - 2026-11-08
 
-- Updated release, testing and security notes, including the README testing description.
 - Prevented stale tabs from overwriting saved queues, synchronized queue and pending submission changes, and blocked concurrent submissions between tabs.
 - Bound note submissions to the sign-in shown in the tab, rejecting changed sessions before contacting EBT.
 - Protected session fingerprints with a private HMAC-SHA256 key; account actions fail closed if the server key is missing or malformed.
