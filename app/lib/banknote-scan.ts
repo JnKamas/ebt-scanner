@@ -5,7 +5,7 @@ export type ScanTarget = "printerCode" | "serial";
 export type ScanBox = { x0: number; y0: number; x1: number; y1: number };
 export type ScanMatch = { value: string; boxes: ScanBox[]; confidences: number[] };
 export type PaddleItem = { text: string; score: number; poly: Array<[number, number]> };
-export const minimumOcrConfidence = 0.7;
+export const minimumOcrConfidence = 0.9;
 
 function textBox({ poly }: PaddleItem): ScanBox {
   const x = poly.map(([pointX]) => pointX);

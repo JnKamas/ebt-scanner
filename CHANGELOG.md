@@ -6,6 +6,9 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.7**.
 
+- Require at least 90% OCR confidence for printer codes and serial numbers.
+- Show a “Scanning timed out” dialog with retry advice when the 15-second scan window expires.
+
 ## [1.3.6] - 2026-11-17
 
 - Recover printer-code OCR readings with O in digit positions as 0 and S as 5, retaining format validation and the 70% confidence requirement.

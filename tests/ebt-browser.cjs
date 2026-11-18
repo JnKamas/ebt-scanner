@@ -129,7 +129,7 @@ const assert = require('node:assert/strict');
     assert.equal(stored[0].country, 'Germany');
 
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByText('Both scans require at least 70% OCR confidence. Format and serial checksum checks still apply.').waitFor();
+    await page.getByText('Both scans require at least 90% OCR confidence. Format and serial checksum checks still apply.').waitFor();
     assert.equal(await page.locator('input[type=range]').count(), 0);
     assert.equal(await page.locator('.stats-card').count(), 0);
     await page.getByRole('button', { name: 'Profile', exact: true }).click();

@@ -38,7 +38,7 @@
   window. Stop immediately on a valid code; otherwise close after 15 seconds
   with an actionable retry message.
 - Validate the six-character EBT printer format and the relevant first-series
-  or Europa serial checksum. Require at least 70% OCR confidence.
+  or Europa serial checksum. Require at least 90% OCR confidence.
 - Freeze successful captures, draw OCR text boxes and show the validated value.
   OCR is assistance: preserve validation and let the user review captured values.
 - Use the official browser PaddleOCR SDK with PP-OCRv6 tiny models. Crop the

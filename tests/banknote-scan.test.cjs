@@ -17,7 +17,7 @@ test('low-confidence, distant and unrelated groups cannot manufacture a match', 
     [item('R001', 10), item('11', 65, 1000)],
     [item('111111')], [{ ...item('R001A1'), poly: [] }],
   ]) assert.equal(findValidCode(group, 'printerCode'), null);
-  assert.equal(findValidCode([item('R001A1', 10, 10, 0.7)], 'printerCode').value, 'R001A1');
+  assert.equal(findValidCode([item('R001A1', 10, 10, 0.9)], 'printerCode').value, 'R001A1');
 });
 
 test('printer lookalike corrections retain confidence checks and fragment boxes', () => {
@@ -42,10 +42,10 @@ test('both scan targets enforce the confidence boundary on every fragment', () =
     ['serial', 'X00000000002', ['X00000', '000002']],
     ['serial', 'MA0000000002', ['MA0000', '000002']],
   ]) {
-    for (const score of [0, 0.69, 0.699999]) assert.equal(findValidCode([item(value, 10, 10, score)], target), null);
-    for (const score of [0.7, 0.700001, 1]) assert.equal(findValidCode([item(value, 10, 10, score)], target).value, value);
+    for (const score of [0, 0.7, 0.89, 0.899999]) assert.equal(findValidCode([item(value, 10, 10, score)], target), null);
+    for (const score of [0.9, 0.900001, 1]) assert.equal(findValidCode([item(value, 10, 10, score)], target).value, value);
     for (let low = 0; low < 2; low++) {
-      assert.equal(findValidCode(parts.map((text, index) => item(text, 10 + index * 55, 10, index === low ? 0.699999 : 1)), target), null);
+      assert.equal(findValidCode(parts.map((text, index) => item(text, 10 + index * 55, 10, index === low ? 0.899999 : 1)), target), null);
     }
     assert.equal(findValidCode([{ ...item(value), poly: [] }], target), null);
   }

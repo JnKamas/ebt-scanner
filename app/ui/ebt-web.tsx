@@ -319,6 +319,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       scanTimeoutRef.current = window.setTimeout(() => {
         stopCamera();
         setMessage(message);
+        if (!previewOnlyRef.current) window.alert(`Scanning timed out.\n\n${message}`);
       }, 15000);
     };
     // Bound startup failures separately so loading never consumes live scan time.

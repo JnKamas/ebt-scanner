@@ -44,11 +44,18 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
 test('low-confidence text and all-digit false matches never stop a live scan', async ({ page }) => {
   await ready(page);
   await page.clock.install();
-  await page.evaluate(values => { window.ocrItems = values; }, [item('R001I1', 0.69), item('111111')]);
+  await page.evaluate(values => { window.ocrItems = values; }, [item('R001I1', 0.89), item('111111')]);
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.ocrPredictions)).toBeGreaterThan(1);
   await expect(page.locator('.scan-success')).toHaveCount(0);
+  let timeoutMessage;
+  page.once('dialog', async dialog => {
+    timeoutMessage = dialog.message();
+    await dialog.dismiss();
+  });
   await page.clock.fastForward(15000);
+  expect(timeoutMessage).toContain('Scanning timed out.');
+  expect(timeoutMessage).toContain('retry or enter the code manually');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: '15 seconds' })).toBeVisible();
   await page.getByRole('button', { name: 'Settings' }).click();
