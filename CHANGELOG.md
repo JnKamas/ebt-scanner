@@ -4,6 +4,8 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.3.8**.
+
 ## [1.3.7] - 2026-11-18
 
 - Require at least 90% OCR confidence for printer codes and serial numbers.
