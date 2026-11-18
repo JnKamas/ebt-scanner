@@ -12,6 +12,7 @@ Older entries describe those versions, including features since changed or remov
 - Remove profile maps and the map-sharing notice; keep hit-note journey maps.
 - Show the matching bundled flag beside the editable country in the entry location.
 - Show the player's EBT account country flag beside their username in both profile cards.
+- Preserve the country input's accessible label when its flag is shown.
 
 ## [1.3.6] - 2026-11-17
 

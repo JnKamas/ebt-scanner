@@ -30,6 +30,8 @@ test('draft fields, red validation, and early flags survive a reload', async ({ 
   await page.reload();
   await expect(page.locator('#printer-code')).toHaveValue('R');
   await expect(page.locator('#serial-number')).toHaveValue('MA');
+  await expect(page.getByRole('textbox', { name: 'Country', exact: true })).toHaveValue('Slovakia');
+  await expect(page.locator('.country-entry .country-flag')).toHaveAttribute('src', '/flags/sk.svg');
   await expect(page.getByLabel('City', { exact: true })).toHaveValue('Bratislava');
   await expect(page.getByLabel('Comment')).toHaveValue('shop');
   await page.locator('#printer-code').fill('R001A1');
