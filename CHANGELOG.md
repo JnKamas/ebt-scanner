@@ -11,6 +11,7 @@ Next version: **1.3.7**.
 - Correct hit-journey map arrows to match EBT's note page and read journey entries from the API's `step` field.
 - Remove profile maps and the map-sharing notice; keep hit-note journey maps.
 - Show the matching bundled flag beside the editable country in the entry location.
+- Show the player's EBT account country flag beside their username in both profile cards.
 
 ## [1.3.6] - 2026-11-17
 
