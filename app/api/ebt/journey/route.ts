@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
-import { ebtImageUrl, rows } from "../../../lib/ebt";
+import { ebtJourneyImageUrl, rows } from "../../../lib/ebt";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const note = result.data as Record<string, unknown>;
     if (String(note.note_id) !== id) return noStoreJson({ error: "This note's journey is not available yet. Retry shortly." }, { status: 404 });
     return noStoreJson({ journey: { total_km: Number(note.total_km) || 0, total_days: Number(note.total_days) || 0,
-      img_url_europe: ebtImageUrl(note.img_url_europe), img_url_world: ebtImageUrl(note.img_url_world),
-      steps: rows(note.steps).map((step) => ({ step_id: Number(step.step_id) || 0, timestamp: String(step.timestamp_adjusted ?? step.timestamp ?? ""), user_name: String(step.user_name ?? ""), location_name: String(step.location_name ?? step.city_name ?? ""), country_name: String(step.country_name ?? ""), comment: String(step.comment ?? ""), hit_km: Number(step.hit_km) || 0, hit_days: Number(step.hit_days) || 0 })).sort((a, b) => a.step_id - b.step_id) } });
+      img_url_europe: ebtJourneyImageUrl(note.img_url_europe), img_url_world: ebtJourneyImageUrl(note.img_url_world),
+      steps: rows(note.step ?? note.steps).map((step) => ({ step_id: Number(step.step_id) || 0, timestamp: String(step.timestamp_adjusted ?? step.timestamp ?? ""), user_name: String(step.user_name ?? ""), location_name: String(step.location_name ?? step.city_name ?? ""), country_name: String(step.country_name ?? ""), comment: String(step.comment ?? ""), hit_km: Number(step.hit_km) || 0, hit_days: Number(step.hit_days) || 0 })).sort((a, b) => a.step_id - b.step_id) } });
   } catch { return noStoreJson({ error: "Could not load the note journey. Retry shortly." }, { status: 502 }); }
 }

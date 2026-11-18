@@ -26,6 +26,18 @@ export function ebtImageUrl(value: unknown): string | null {
   } catch { return null; }
 }
 
+export function ebtJourneyImageUrl(value: unknown): string | null {
+  const url = ebtImageUrl(value);
+  if (!url || new URL(url).pathname !== "/map/notereport.php") return url;
+  // The API lists coordinates oldest first, but EBT's map renderer expects
+  // newest first (as on its note page) to point arrows toward later entries.
+  return url.replace(/([?;&](?:lat|long)=:)([^;&]+)/g, (match, prefix: string, coordinates: string) => {
+    const points = coordinates.split(":");
+    if (!points.every((point) => /^-?\d+(?:\.\d+)?$/.test(point))) return match;
+    return prefix + points.reverse().join(":");
+  });
+}
+
 // Upstream JSON is untrusted. Never coerce null, booleans or empty strings to success.
 export function submissionStatus(value: unknown): number | null {
   if (typeof value !== "number" && !(typeof value === "string" && /^\d+$/.test(value))) return null;

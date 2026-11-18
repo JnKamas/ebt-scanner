@@ -71,6 +71,23 @@ test('journeys normalize and order steps and reject invalid note IDs', async () 
   assert.equal(result.body.journey.steps[1].hit_km, 120);
 });
 
+test('journeys read the live API step field and match EBT note-page arrow direction', async () => {
+  const api = route('journey', () => ({ data: {
+    note_id: 42,
+    step: { 1: { step_id: 1, location_name: 'Berlin' }, 0: { step_id: 0, location_name: 'Wien' } },
+    img_url_europe: 'http://www.eurobilltracker.com/map/notereport.php?area=europe;lat=:48.2:52.5;long=:16.4:13.4',
+    img_url_world: 'https://www.eurobilltracker.com/map/notereport.php?area=world;lat=:48.2:52.5:40.7;long=:16.4:13.4:-74',
+  } }));
+  const { journey } = (await api.GET(request('id=42'))).body;
+  assert.deepEqual(journey.steps.map(step => step.location_name), ['Wien', 'Berlin']);
+  assert.equal(journey.img_url_europe, 'https://www.eurobilltracker.com/map/notereport.php?area=europe;lat=:52.5:48.2;long=:13.4:16.4');
+  assert.equal(journey.img_url_world, 'https://www.eurobilltracker.com/map/notereport.php?area=world;lat=:40.7:52.5:48.2;long=:-74:13.4:16.4');
+  assert.equal(lib.ebtJourneyImageUrl(null), null);
+  assert.equal(lib.ebtJourneyImageUrl('https://evil.test/map/notereport.php?lat=:1:2'), null);
+  const single = 'https://www.eurobilltracker.com/map/notereport.php?area=europe;lat=:48.2;long=:16.4';
+  assert.equal(lib.ebtJourneyImageUrl(single), single);
+});
+
 test('submission errors decode combined bits and duplicate metadata', () => {
   assert.match(lib.submissionMessage({ status: 20 }), /country.*printer code/i);
   assert.match(lib.submissionMessage({ status: 128, alreadyDate: '2020-01-02', alreadyDenom: 20 }), /2020-01-02.*€20/);
