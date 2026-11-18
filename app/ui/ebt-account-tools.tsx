@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { EbtCity, EbtComment, EbtJourney, EbtProfile, Receipt, submissionMessage, submissionStatus } from "../lib/ebt";
+import { locationCountry } from "../lib/banknote-country";
 
 function useEbtData<T>(url: string | null, cacheSuggestions = false) {
   const [state, setState] = useState<{ url: string | null; data?: T; error?: string; loading: boolean }>({ url: null, loading: false });
@@ -97,6 +98,7 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
   onChoose: (location: Location) => void;
 }) {
   const cities = useEbtData<{ data: EbtCity[] }>(signedIn ? "/api/ebt/suggestions?kind=cities" : null, true);
+  const countryFlag = locationCountry(location.country);
   const ready = signedIn && Boolean(location.city.trim() && location.country.trim());
   const query = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country }).toString() : "");
   const commentQuery = useDebouncedQuery(ready ? new URLSearchParams({ city: location.city, country: location.country, zip: location.postalCode }).toString() : "");
@@ -104,7 +106,7 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
   const comments = useEbtData<{ data: EbtComment[] }>(commentQuery ? `/api/ebt/suggestions?kind=comments&${commentQuery}` : null, true);
   return <>
     <div className="location-card">
-      <label>Country<input value={location.country} onChange={(event) => onChange("country", event.target.value)} placeholder="Slovakia" autoComplete="country-name" /></label>
+      <label>Country<span className="country-entry">{countryFlag && <img className="banknote-flag" src={`/flags/${countryFlag.code}.svg`} width="20" height="15" alt="" />}<input value={location.country} onChange={(event) => onChange("country", event.target.value)} placeholder="Slovakia" autoComplete="country-name" /></span></label>
       <div className="two-fields">
         <SuggestedField id="entry-city" label="City" value={location.city} placeholder="Bratislava" autoComplete="address-level2" onChange={(value) => onChange("city", value)} {...cities} suggestions={(cities.data?.data || []).map((city) => ({ value: `${city.country}/${city.city}`, label: city.city, detail: [city.country, city.top_zipcode].filter(Boolean).join(" · "), choose: () => onChoose({ city: city.city, country: city.country, postalCode: city.top_zipcode }) }))} />
         <SuggestedField id="entry-postcode" label="Postal code" value={location.postalCode} placeholder="811 01" autoComplete="postal-code" onChange={(value) => onChange("postalCode", value)} {...zips} suggestions={(zips.data?.data || []).filter(Boolean).map((zip) => ({ value: zip, label: zip, choose: () => onChange("postalCode", zip) }))} />
