@@ -9,6 +9,7 @@ Next version: **1.3.7**.
 - Require at least 90% OCR confidence for printer codes and serial numbers.
 - Show a “Scanning timed out” dialog with retry advice when the 15-second scan window expires.
 - Correct hit-journey map arrows to match EBT's note page and read journey entries from the API's `step` field.
+- Remove profile maps and the map-sharing notice; keep hit-note journey maps.
 
 ## [1.3.6] - 2026-11-17
 

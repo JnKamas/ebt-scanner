@@ -4,7 +4,6 @@ export type SubmissionResult = { status?: number | string; billId?: string | num
 export type Receipt = { id: string; serial: string; denomination: string; result: SubmissionResult | null };
 export type EbtProfile = {
   user_name: string; join_date: string; total_notes: number; total_hits: number;
-  img_url_notes_europe: string | null; img_url_notes_world: string | null; img_url_hits_europe: string | null;
 };
 export type JourneyStep = { step_id: number; timestamp: string; user_name: string; location_name: string; country_name: string; comment: string; hit_km: number; hit_days: number };
 export type EbtJourney = { steps: JourneyStep[]; total_km: number; total_days: number; img_url_europe: string | null; img_url_world: string | null };

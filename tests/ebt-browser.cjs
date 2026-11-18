@@ -22,7 +22,7 @@ const assert = require('node:assert/strict');
       const respond = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
       if (url.pathname.endsWith('/session')) return respond({ account: signedIn ? account : null });
       if (url.pathname.endsWith('/logout')) { signedIn = false; return respond({ ok: true }); }
-      if (url.pathname.endsWith('/profile')) return respond({ profile: { user_name: 'TestTracker', join_date: '2005-01-01', total_notes: 100, total_hits: 3, img_url_notes_europe: 'https://www.eurobilltracker.com/test-map.png', img_url_notes_world: null, img_url_hits_europe: null } });
+      if (url.pathname.endsWith('/profile')) return respond({ profile: { user_name: 'TestTracker', join_date: '2005-01-01', total_notes: 100, total_hits: 3 } });
       if (url.pathname.endsWith('/journey')) return respond({ journey: { total_km: 120, total_days: 30, img_url_europe: null, img_url_world: null, steps: [{ step_id: 0, location_name: 'Berlin', country_name: 'Germany', timestamp: '2026-09-29', user_name: 'FirstTracker', comment: 'shop', hit_km: 0, hit_days: 0 }, { step_id: 1, location_name: 'Wien', country_name: 'Austria', timestamp: '2026-10-29', user_name: 'TestTracker', comment: '', hit_km: 120, hit_days: 30 }] } });
       if (url.pathname.endsWith('/notes')) {
         const { notes } = route.request().postDataJSON();
@@ -135,7 +135,8 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: 'Profile', exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Profile', exact: true }).getAttribute('aria-current'), 'page');
     await page.getByText('Tracking since 2005-01-01').waitFor();
-    assert.equal(await page.getByText('My notes in Europe', { exact: true }).count(), 1);
+    assert.equal(await page.locator('.personal-profile .ebt-map').count(), 0);
+    assert.equal(await page.getByText('Maps are unavailable. Check your map sharing settings on EBT.', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Refresh my stats' }).click();
     await page.getByText('Tracking since 2005-01-01').waitFor();
     await page.setViewportSize({ width: 375, height: 812 });

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { SESSION_COOKIE, clearSession, ebtRequest, noStoreJson } from "../shared";
-import { ebtImageUrl, rows } from "../../../lib/ebt";
+import { rows } from "../../../lib/ebt";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
     if (!result || typeof result !== "object" || !("data" in result) || !result.data || typeof result.data !== "object") throw new Error("Invalid profile");
     const profile = result.data as Record<string, unknown>;
     if (String(profile.user_id) !== userId || !Number.isFinite(Number(profile.total_notes)) || !Number.isFinite(Number(profile.total_hits))) throw new Error("Unexpected profile");
-    return noStoreJson({ profile: { user_name: String(profile.user_name ?? username), join_date: String(profile.join_date ?? ""), total_notes: Number(profile.total_notes) || 0, total_hits: Number(profile.total_hits) || 0,
-      img_url_notes_europe: ebtImageUrl(profile.img_url_notes_europe), img_url_notes_world: ebtImageUrl(profile.img_url_notes_world), img_url_hits_europe: ebtImageUrl(profile.img_url_hits_europe) } });
+    return noStoreJson({ profile: { user_name: String(profile.user_name ?? username), join_date: String(profile.join_date ?? ""), total_notes: Number(profile.total_notes) || 0, total_hits: Number(profile.total_hits) || 0 } });
   } catch { return noStoreJson({ error: "Could not load your EBT profile. Retry in a moment." }, { status: 502 }); }
 }

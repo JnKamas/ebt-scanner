@@ -57,7 +57,6 @@ button { cursor:pointer; }
 .personal-profile p { margin:8px 0; }
 .personal-profile .text-button,.personal-profile .api-status button { color:var(--mint); }
 .ebt-map { margin:10px 0; font-size:13px; }
-.ebt-map summary { cursor:pointer; font-weight:700; }
 .ebt-map img { display:block; width:100%; height:auto; margin-top:9px; border-radius:8px; background:white; }
 .submission-receipts { margin:20px 0; }
 .submission-receipts h2 { font-size:18px; margin:0 0 12px; }

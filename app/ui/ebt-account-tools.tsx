@@ -114,10 +114,9 @@ export function EntryLocationFields({ signedIn, location, comment, onChange, onC
   </>;
 }
 
-function EbtMap({ url, label, expanded = false }: { url: string | null; label: string; expanded?: boolean }) {
+function EbtMap({ url, label }: { url: string | null; label: string }) {
   if (!url) return null;
-  if (expanded) return <figure className="ebt-map"><figcaption>{label}</figcaption><img src={url} alt={label} loading="lazy" referrerPolicy="no-referrer" /></figure>;
-  return <details className="ebt-map"><summary>{label}</summary><a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={label} loading="lazy" referrerPolicy="no-referrer" /></a></details>;
+  return <figure className="ebt-map"><figcaption>{label}</figcaption><img src={url} alt={label} loading="lazy" referrerPolicy="no-referrer" /></figure>;
 }
 
 export function PersonalProfile({ onTotals }: { onTotals: (notes: number, hits: number) => void }) {
@@ -125,8 +124,6 @@ export function PersonalProfile({ onTotals }: { onTotals: (notes: number, hits: 
   const profile = result.data?.profile;
   useEffect(() => { if (profile) onTotals(profile.total_notes, profile.total_hits); }, [profile, onTotals]);
   return <div className="personal-profile"><LoadStatus {...result} />{profile && <><p>Tracking since {profile.join_date || "an unknown date"}</p>
-    <EbtMap url={profile.img_url_notes_europe} label="My notes in Europe" /><EbtMap url={profile.img_url_notes_world} label="My notes worldwide" /><EbtMap url={profile.img_url_hits_europe} label="My hit map" />
-    {!profile.img_url_notes_europe && !profile.img_url_notes_world && !profile.img_url_hits_europe && <p>Maps are unavailable. Check your map sharing settings on EBT.</p>}
     <button type="button" className="text-button" onClick={result.retry}>Refresh my stats</button></>}</div>;
 }
 
@@ -136,7 +133,7 @@ function HitJourney({ id, example }: { id: string; example?: EbtJourney }) {
   return <div className="hit-journey"><LoadStatus {...result} />{journey && <>
     <p><b>{journey.total_km.toLocaleString()} km</b> over <b>{journey.total_days.toLocaleString()} days</b></p>
     <ol>{journey.steps.map((step) => <li key={step.step_id}><strong>{step.location_name}, {step.country_name}</strong><span>{step.timestamp} · {step.user_name}</span>{step.step_id > 0 && <span>{step.hit_km.toLocaleString()} km · {step.hit_days.toLocaleString()} days since previous entry</span>}{step.comment && <p>{step.comment}</p>}</li>)}</ol>
-    <EbtMap url={journey.img_url_europe} label="Journey in Europe" expanded /><EbtMap url={journey.img_url_world} label="Journey worldwide" expanded />
+    <EbtMap url={journey.img_url_europe} label="Journey in Europe" /><EbtMap url={journey.img_url_world} label="Journey worldwide" />
     {!journey.steps.length && <p>Entry details are not available from EBT yet.</p>}
   </>}</div>;
 }

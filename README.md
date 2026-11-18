@@ -24,7 +24,7 @@ You can edit either field or enter everything manually. Settings lets you choose
 cameras and test focus without recognition. For batches, use **Use this printer code for multiple notes**.
 
 The app also shows submission results, account totals and available hit journeys
-and maps. You can install it from your browser; on iPhone, use Safari's
+with maps. You can install it from your browser; on iPhone, use Safari's
 **Share > Add to Home Screen**. Real banknotes, laptop focus and iPhone Safari
 have been tested by the maintainer. The app requires an internet connection.
 

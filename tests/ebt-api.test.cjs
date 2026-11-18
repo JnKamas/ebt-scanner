@@ -58,8 +58,7 @@ test('profile resolves the authenticated exact username, including paginated res
   const result = await api.GET(request('user_id=999'));
   assert.equal(result.status, 200);
   assert.equal(result.body.profile.total_notes, 100);
-  assert.equal(result.body.profile.img_url_notes_europe, 'https://www.eurobilltracker.com/map.png');
-  assert.equal(result.body.profile.img_url_hits_europe, null);
+  assert.deepEqual(result.body.profile, { user_name: 'Tracker', join_date: '2005-01-01', total_notes: 100, total_hits: 3 });
 });
 
 test('journeys normalize and order steps and reject invalid note IDs', async () => {
