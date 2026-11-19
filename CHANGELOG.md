@@ -6,6 +6,8 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.8**.
 
+- Run server functions in Frankfurt so EBT account requests use a European server region.
+
 ## [1.3.7] - 2026-11-18
 
 - Require at least 90% OCR confidence for printer codes and serial numbers.
