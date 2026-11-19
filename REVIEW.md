@@ -6,7 +6,7 @@ Automated tests cover scanning, note entry, saved drafts, sign-in and submission
 handling. They use made-up account data and simulated EBT responses. You can see the
 results in [GitHub Actions](https://github.com/JnKamas/ebt-scanner/actions).
 
-Release **1.3.7** also covers cross-tab queue edits and sign-in changes,
+Release **1.3.8** also covers cross-tab queue edits and sign-in changes,
 delayed saves, concurrent submissions and server session-key validation.
 Header version and privacy links are checked on every tab at 320px width.
 
@@ -36,3 +36,6 @@ including confidence limits and split text boxes.
 
 Version 1.3.7 adds coverage for the 90% OCR confidence boundary, the scan-timeout
 dialog, journey coordinate order and API entry fields, and profile-map removal.
+
+For version 1.3.8, the maintainer confirmed sign-in works on the Frankfurt-region
+preview after production EBT requests failed from the US region.
