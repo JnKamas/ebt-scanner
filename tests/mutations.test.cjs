@@ -122,6 +122,26 @@ test('submission accepts 25 unique IDs, rejects 26, and requires every location 
   }
 });
 
+test('mixed hit batches send each comment under its own note index', async () => {
+  const target = api('notes', () => ({
+    note2: { status: 0, billId: 44 },
+    note1: { status: 1, billId: 43 },
+    note0: { status: 0, billId: 42 },
+  }));
+  const notes = [
+    { ...note, comment: 'Café & bakery' },
+    { ...note, id: 'hit', comment: 'ATM + deposit' },
+    { ...note, id: 'last', comment: 'Market' },
+  ];
+  const response = await target.POST(request({ notes }));
+  assert.equal(response.status, 200);
+  assert.equal(target.calls.length, 1);
+  assert.deepEqual(notes.map((_, index) => target.calls[0][`comment${index}`]), notes.map(entry => entry.comment));
+  assert.deepEqual(response.body.results.map(({ id, result }) => [id, result.status]), [
+    [note.id, 0], ['hit', 1], ['last', 0],
+  ]);
+});
+
 test('lost upstream responses preserve an explicitly unknown submission outcome', async () => {
   let inserted = false;
   const target = api('notes', () => { inserted = true; throw new Error('response lost'); });

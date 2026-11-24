@@ -72,14 +72,18 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
     <label htmlFor={id}>{label}{multiline && <> <span>optional</span></>}</label>
     {multiline ? <textarea {...shared} rows={2} /> : <input {...shared} />}
     {focused && <div id={listId} className="field-suggestions" onPointerDown={(event) => {
-      // Keep the input focused until a suggestion or Retry click completes.
-      // Some browsers blur it without focusing the button, hiding it too soon.
-      if ((event.target as HTMLElement).closest("button")) { pointerInteraction.current = true; event.preventDefault(); }
+      if (!(event.target as HTMLElement).closest("button")) return;
+      // Keep the list open through touch blur and let the browser handle the tap.
+      if (event.pointerType === "mouse") event.preventDefault();
+      else pointerInteraction.current = true;
     }} onPointerUp={() => { pointerInteraction.current = false; }} onPointerCancel={() => { pointerInteraction.current = false; }}>
       {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onPointerUp={(event) => {
-        // Touch browsers can omit the compatibility click after preventing blur.
-        // Pointer-up applies a completed tap; a scroll sends pointercancel.
-        if (event.isPrimary && event.button === 0) { event.preventDefault(); choose(item); }
+        // Touch browsers can omit click after blur. Implicit capture can also
+        // deliver pointer-up after dragging off the button.
+        if (event.pointerType === "mouse" || !event.isPrimary || !pointerInteraction.current) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (event.clientX >= bounds.left && event.clientX < bounds.right
+          && event.clientY >= bounds.top && event.clientY < bounds.bottom) choose(item);
       }} onClick={() => choose(item)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
       <LoadStatus loading={loading} error={error} retry={retry} />
     </div>}

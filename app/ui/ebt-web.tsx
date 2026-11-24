@@ -92,6 +92,12 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   const previewOnlyRef = useRef(false);
   const cameraRequestRef = useRef(0);
   const draftRef = useRef(draft);
+  // Scan timers and queue actions need the latest draft before React renders it.
+  const updateDraft = useCallback((update: (current: typeof draft) => typeof draft) => {
+    const next = update(draftRef.current);
+    draftRef.current = next;
+    setDraft(next);
+  }, []);
   const notesRef = useRef(notes);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
@@ -121,7 +127,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       savedRef.current = { notes: saved.notes, draft: saved.draft };
       setNotes(saved.notes);
       setUncertainIds(saved.pendingIds);
-      setDraft(saved.draft);
+      updateDraft(() => saved.draft);
       storageBlockedRef.current = Boolean(saved.error);
       setStorageError(saved.error);
     } catch {
@@ -138,7 +144,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     }
     // Remove old app-shell caches without touching drafts, notes or other apps.
     void window.caches?.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("ebt-web-")).map((key) => window.caches.delete(key)))).catch(() => undefined);
-  }, []);
+  }, [updateDraft]);
 
   useEffect(() => {
     if (!storageReady || storageBlockedRef.current) return;
@@ -181,9 +187,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   }, []);
 
   useEffect(() => {
-    draftRef.current = draft;
     notesRef.current = notes;
-  }, [draft, notes]);
+  }, [notes]);
 
   useEffect(() => {
     const savedSeconds = Number(readPreference("ebt-web-result-display-seconds"));
@@ -286,12 +291,12 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   const notesPerHit = account && Number(account.totalhits) > 0 ? (Number(account.totalbills) / Number(account.totalhits)).toFixed(1) : "—";
 
   function update(field: keyof ReturnType<typeof blankDraft>, value: string) {
-    setDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
+    updateDraft((current) => ({ ...current, [field]: field === "serial" || field === "printerCode" ? clean(value) : value }));
   }
 
   function chooseDenomination(value: string) {
     // A printer code belongs to one denomination; start a new batch when it changes.
-    setDraft((current) => ({ ...current, denomination: value, printerCode: reusePrinterCode && current.denomination !== value ? "" : current.printerCode }));
+    updateDraft((current) => ({ ...current, denomination: value, printerCode: reusePrinterCode && current.denomination !== value ? "" : current.printerCode }));
   }
 
   function labelFor(target: ScanTarget) {
@@ -462,7 +467,6 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     scanTimeoutRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    draftRef.current = { ...draftRef.current, [target]: match.value };
     update(target, match.value);
     setIsScanning(false);
     setPreviewReady(false);
@@ -628,7 +632,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
             setLocationMessage("Your location fields changed during the lookup. Click Use my location again to replace them, or keep your edits.");
             return;
           }
-          setDraft((draft) => ({ ...draft, ...location }));
+          updateDraft((current) => ({ ...current, ...location }));
           setLocationMessage("");
         } catch (error) {
           setLocationMessage(error instanceof Error && !["TypeError", "TimeoutError", "AbortError"].includes(error.name) ? error.message : "Could not look up your city and postcode. Check your connection and retry, or enter them manually.");
@@ -651,8 +655,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     queuePhotoWrite(() => storePhotoCard(newNote, banknotePhotos));
     setLatestPhotos((current) => reusePrinterCode && current.printerCode?.value === clean(currentDraft.printerCode) ? { printerCode: current.printerCode } : {});
     const nextDraft = keepLocationAndComment ? { ...currentDraft, serial: "", printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" } : { ...blankDraft(), denomination: currentDraft.denomination, country: currentDraft.country, city: currentDraft.city, postalCode: currentDraft.postalCode, printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" };
-    draftRef.current = nextDraft;
-    setDraft(nextDraft);
+    updateDraft(() => nextDraft);
     setMessage("Added to your local submission queue.");
     return true;
   }
@@ -674,7 +677,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   }
 
   function applyEbtDefaults(ebtAccount: EbtAccount) {
-    setDraft((current) => ({ ...current, country: current.country || ebtAccount.my_country || "", city: current.city || ebtAccount.my_city || "", postalCode: current.postalCode || ebtAccount.my_zip || "" }));
+    updateDraft((current) => ({ ...current, country: current.country || ebtAccount.my_country || "", city: current.city || ebtAccount.my_city || "", postalCode: current.postalCode || ebtAccount.my_zip || "" }));
   }
 
   async function login(event: FormEvent<HTMLFormElement>) {
@@ -852,7 +855,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     {tab === "entry" && <section className="entry-panel">
       <div className="section-heading"><span>Where did you get it?</span><button onClick={useLocation} disabled={isLocating}>{isLocating ? "Finding location…" : "Use my location"}</button></div>
       {locationMessage && <p className="notice location-notice" role="status">{locationMessage}</p>}
-      <EntryLocationFields key={account?.username || "signed-out"} signedIn={Boolean(account)} location={draft} comment={draft.comment} onChange={update} onChoose={(location) => setDraft((current) => ({ ...current, ...location }))} />
+      <EntryLocationFields key={account?.username || "signed-out"} signedIn={Boolean(account)} location={draft} comment={draft.comment} onChange={update} onChoose={(location) => updateDraft((current) => ({ ...current, ...location }))} />
 
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>

@@ -6,6 +6,8 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.9**.
 
+- Apply tapped comment suggestions and keep the latest comment when adding a note to the queue.
+
 ## [1.3.8] - 2026-11-19
 
 - Run server functions in Frankfurt so EBT account requests use a European server region.
