@@ -6,7 +6,7 @@ Older entries describe those versions, including features since changed or remov
 
 ## [1.3.9] - 2026-11-24
 
-- Apply comment suggestions when focus shifts during a tap and keep the latest comment when adding a note to the queue.
+- Apply comment suggestions when focus shifts during selection and keep the latest comment when adding a note to the queue.
 
 ## [1.3.8] - 2026-11-19
 

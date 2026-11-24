@@ -74,9 +74,9 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
     {focused && <div id={listId} className="field-suggestions" onPointerDown={(event) => {
       const button = (event.target as HTMLElement).closest("button");
       if (!button || !event.isPrimary || event.button !== 0) return;
-      // Keep the list open through touch blur and let the browser handle the tap.
+      // Keep the list open if the input blurs before the button activates.
+      pointerInteraction.current = { id: event.pointerId, button };
       if (event.pointerType === "mouse") event.preventDefault();
-      else pointerInteraction.current = { id: event.pointerId, button };
     }} onPointerUp={(event) => {
       const pressed = pointerInteraction.current;
       if (!pressed || pressed.id !== event.pointerId) return;
