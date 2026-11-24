@@ -54,10 +54,10 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
 }) {
   const [focused, setFocused] = useState(false);
   const [filtering, setFiltering] = useState(false);
-  const pointerInteraction = useRef(false);
+  const pointerInteraction = useRef<{ id: number; button: HTMLButtonElement } | null>(null);
   const matches = suggestions.filter((item) => !filtering || `${item.label} ${item.detail || ""}`.toLocaleLowerCase().includes(value.toLocaleLowerCase())).slice(0, 5);
   const listId = useId();
-  const choose = (item: Suggestion) => { item.choose(); pointerInteraction.current = false; setFocused(false); };
+  const choose = (item: Suggestion) => { item.choose(); pointerInteraction.current = null; setFocused(false); };
   const shared = {
     id, value, placeholder, autoComplete: autoComplete || "off",
     onFocus: () => { setFocused(true); setFiltering(false); },
@@ -72,19 +72,25 @@ function SuggestedField({ id, label, value, placeholder, autoComplete, multiline
     <label htmlFor={id}>{label}{multiline && <> <span>optional</span></>}</label>
     {multiline ? <textarea {...shared} rows={2} /> : <input {...shared} />}
     {focused && <div id={listId} className="field-suggestions" onPointerDown={(event) => {
-      if (!(event.target as HTMLElement).closest("button")) return;
+      const button = (event.target as HTMLElement).closest("button");
+      if (!button || !event.isPrimary || event.button !== 0) return;
       // Keep the list open through touch blur and let the browser handle the tap.
       if (event.pointerType === "mouse") event.preventDefault();
-      else pointerInteraction.current = true;
-    }} onPointerUp={() => { pointerInteraction.current = false; }} onPointerCancel={() => { pointerInteraction.current = false; }}>
-      {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" onPointerUp={(event) => {
-        // Touch browsers can omit click after blur. Implicit capture can also
-        // deliver pointer-up after dragging off the button.
-        if (event.pointerType === "mouse" || !event.isPrimary || !pointerInteraction.current) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (event.clientX >= bounds.left && event.clientX < bounds.right
-          && event.clientY >= bounds.top && event.clientY < bounds.bottom) choose(item);
-      }} onClick={() => choose(item)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
+      else pointerInteraction.current = { id: event.pointerId, button };
+    }} onPointerUp={(event) => {
+      const pressed = pointerInteraction.current;
+      if (!pressed || pressed.id !== event.pointerId) return;
+      pointerInteraction.current = null;
+      const { button } = pressed;
+      if (!button.isConnected || !button.hasAttribute("data-suggestion")) return;
+      // Release can reach the list after blur, even when no click follows.
+      const bounds = button.getBoundingClientRect();
+      if (event.clientX >= bounds.left && event.clientX < bounds.right
+        && event.clientY >= bounds.top && event.clientY < bounds.bottom) button.click();
+    }} onPointerCancel={(event) => {
+      if (pointerInteraction.current?.id === event.pointerId) pointerInteraction.current = null;
+    }}>
+      {matches.length > 0 && <ul aria-label={`${label} suggestions`}>{matches.map((item) => <li key={item.value}><button type="button" data-suggestion onClick={() => choose(item)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button></li>)}</ul>}
       <LoadStatus loading={loading} error={error} retry={retry} />
     </div>}
   </div>;

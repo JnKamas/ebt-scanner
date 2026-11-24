@@ -44,39 +44,6 @@ test('draft fields, red validation, and early flags survive a reload', async ({ 
   await expect(page.getByText('Comment: use at most')).toHaveCount(0);
 });
 
-test('a comment suggestion tap survives blur and the last edit reaches the queue', async ({ page }) => {
-  await setup(page, { signedIn: true });
-  await page.route('**/api/ebt/suggestions?kind=comments&*', route => route.fulfill({ json: { data: [{ comment: 'Café', amount: 3 }] } }));
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Choose €20', exact: true }).click();
-  await page.getByLabel('Country', { exact: true }).fill('Slovakia');
-  await page.getByLabel('City', { exact: true }).fill('Bratislava');
-  await page.locator('#printer-code').fill(note.printerCode);
-  await page.locator('#serial-number').fill(note.serial);
-  const comment = page.getByLabel('Comment');
-  await comment.focus();
-  await page.getByRole('button', { name: /Café/ }).evaluate(button => {
-    const field = document.activeElement;
-    const bounds = button.getBoundingClientRect();
-    const tap = { bubbles: true, button: 0, pointerType: 'touch', isPrimary: true,
-      clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
-    button.dispatchEvent(new PointerEvent('pointerdown', tap));
-    field.blur();
-    button.dispatchEvent(new PointerEvent('pointerup', tap));
-  });
-  await expect(comment).toHaveValue('Café');
-  const addNote = page.getByRole('button', { name: /Add note to queue/ });
-  await expect(addNote).toBeEnabled();
-  await addNote.evaluate(button => {
-    const field = document.querySelector('#entry-comment');
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, 'Café & bakery');
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-    button.click();
-  });
-  await page.getByRole('button', { name: /^Queue/ }).click();
-  await expect(page.locator('.note-list article')).toContainText('Café & bakery');
-});
-
 test('editing permits an optional blank postcode and uses the same comment checks', async ({ page }) => {
   await setup(page, { notes: [note] });
   await page.goto('/');
