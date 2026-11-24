@@ -4,6 +4,8 @@ Older entries describe those versions, including features since changed or remov
 
 ## [Unreleased]
 
+Next version: **1.3.10**.
+
 ## [1.3.9] - 2026-11-24
 
 - Apply comment suggestions when focus shifts during selection and keep the latest comment when adding a note to the queue.
