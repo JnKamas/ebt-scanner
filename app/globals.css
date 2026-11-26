@@ -173,8 +173,8 @@ button { cursor:pointer; }
 
 .camera-review { overflow-y:auto; }
 .camera-review .camera-toolbar, .camera-review .scan-success, .camera-review .result-actions { flex-shrink:0; }
-.scan-review-codes { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 0 12px; }
-.scan-review-codes > div { flex:1 1 auto; max-width:210px; padding:8px 12px; border-radius:10px; background:#ffffff12; }
+.scan-review-codes { display:grid; width:min(420px,100%); gap:8px; margin:0 auto 12px; }
+.scan-review-codes > div { padding:8px 12px; border-radius:10px; background:#ffffff12; }
 .scan-review-codes dt { color:#b7cbd1; font-size:12px; }
 .scan-review-codes dd { margin:4px 0 0; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:clamp(16px,4vw,22px); font-weight:700; overflow-wrap:anywhere; }
 .camera-review .result-actions > button { padding:6px; }

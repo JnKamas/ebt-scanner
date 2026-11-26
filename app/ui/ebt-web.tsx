@@ -830,8 +830,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           </div>
           <div className="scan-success">
             {reviewingNote ? <dl className="scan-review-codes">
-              <div><dt>Printer code</dt><dd>{draft.printerCode || "Missing"}</dd></div>
               <div><dt>Serial number</dt><dd>{scanResult.value}</dd></div>
+              <div><dt>Printer code</dt><dd>{draft.printerCode || "Missing"}</dd></div>
             </dl> : <>
               <span>VALID EBT PRINTER CODE FORMAT</span>
               <strong className="has-capture-code" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}><CaptureCodeValue {...scanResult} /></strong>
