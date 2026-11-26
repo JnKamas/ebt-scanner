@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { setup } = require('./fixtures.cjs');
+const { setup, fillLocation } = require('./fixtures.cjs');
 
 test('production CSP blocks injected scripts and event handlers while the app remains usable', async ({ page }) => {
   await setup(page);
@@ -85,6 +85,7 @@ test('the real local OCR worker prepares and processes a camera crop under produ
   await expect(page.locator('.ocr-progress')).toHaveCount(0, { timeout: 90000 });
   expect(await page.evaluate(() => window.cameraRequests)).toBe(0);
   await page.getByRole('button', { name: 'Choose €20', exact: true }).click();
+  await fillLocation(page);
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.realOcrPredictions), { timeout: 30000 }).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.cameraRequests)).toBe(1);

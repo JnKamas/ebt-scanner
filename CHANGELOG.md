@@ -7,6 +7,7 @@ Older entries describe those versions, including features since changed or remov
 Next version: **1.3.10**.
 
 - Review both scan photos in scan order, with the recognized codes sized to match. Both result screens keep the actions at the bottom and omit OCR confidence scores.
+- Require country, postal code, and city before opening the banknote scanner.
 
 ## [1.3.9] - 2026-11-24
 

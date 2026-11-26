@@ -1,10 +1,11 @@
 const { test, expect } = require('@playwright/test');
-const { setup } = require('./fixtures.cjs');
+const { setup, fillLocation } = require('./fixtures.cjs');
 const item = (text, score = 0.95) => ({ text, score, poly: [[10,10],[100,10],[100,30],[10,30]] });
 
-async function ready(page) {
+async function ready(page, withLocation = true) {
   await setup(page);
   await page.goto('/');
+  if (withLocation) await fillLocation(page);
   await page.getByRole('button', { name: 'Choose €20', exact: true }).click();
   await expect(page.locator('.ocr-progress')).toHaveCount(0);
 }
@@ -14,12 +15,23 @@ async function attached(page) {
 }
 
 test('only explicit Scan opens the camera; valid I codes freeze the frame and continue to serial', async ({ page }) => {
-  await ready(page);
+  await ready(page, false);
+  const scans = page.getByRole('button', { name: 'Scan', exact: true });
+  await expect(scans).toHaveCount(2);
+  for (const scan of await scans.all()) await expect(scan).toBeDisabled();
+  await expect(page.getByText('Enter the country, postal code, and city before scanning.')).toBeVisible();
+  await fillLocation(page);
+  for (const name of ['Country', 'Postal code', 'City']) {
+    const field = page.getByLabel(name, { exact: true });
+    const value = await field.inputValue();
+    await field.fill(' ');
+    for (const scan of await scans.all()) await expect(scan).toBeDisabled();
+    await field.fill(value);
+  }
+  for (const scan of await scans.all()) await expect(scan).toBeEnabled();
   await page.locator('label[for="printer-code"]').click();
   await page.locator('#printer-code').click();
   expect(await page.evaluate(() => window.cameraRequests)).toBe(0);
-  await page.getByLabel('Country', { exact: true }).fill('Slovakia');
-  await page.getByLabel('City', { exact: true }).fill('Bratislava');
   await page.evaluate(value => { window.ocrItems = [value]; }, item('R00111'));
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('R001I1');

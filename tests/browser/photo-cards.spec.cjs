@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { setup, note } = require('./fixtures.cjs');
+const { setup, note, fillLocation } = require('./fixtures.cjs');
 const item = text => ({ text, score: 0.95, poly: [[10, 10], [100, 10], [100, 30], [10, 30]] });
 
 async function history(page) {
@@ -19,10 +19,6 @@ async function printerScan(page) {
   await page.evaluate(value => { window.ocrItems = [value]; }, item('R001A1'));
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('R001A1');
-}
-async function fillLocation(page) {
-  await page.getByLabel('Country', { exact: true }).fill(note.country);
-  await page.getByLabel('City', { exact: true }).fill(note.city);
 }
 async function counts(page) {
   return page.evaluate(async () => {
@@ -161,10 +157,10 @@ test('camera tests do not recognize or save banknotes', async ({ page }) => {
 
 test('banknote save failures retain the paired record for one retry without blocking queue entry', async ({ page }) => {
   await start(page);
+  await fillLocation(page);
   await printerScan(page);
   await page.getByRole('button', { name: 'Close camera' }).click();
   await page.locator('#serial-number').fill(note.serial);
-  await fillLocation(page);
   await page.evaluate(() => {
     const open = indexedDB.open.bind(indexedDB); window.failBanknoteStorage = true;
     indexedDB.open = (...args) => { if (window.failBanknoteStorage && args[0] === 'ebt-scan-photos') throw new DOMException('Quota exceeded', 'QuotaExceededError'); return open(...args); };
@@ -244,10 +240,10 @@ test('older paired banknotes retain their association while wider preview captur
 
 test('confirmed submission removes crops and pending saves after an initial record save failure', async ({ page }) => {
   await start(page, { signedIn: true });
+  await fillLocation(page);
   await printerScan(page);
   await page.getByRole('button', { name: 'Close camera' }).click();
   await page.locator('#serial-number').fill(note.serial);
-  await fillLocation(page);
   await page.evaluate(() => {
     const open = indexedDB.open.bind(indexedDB); window.failBanknoteStorage = true;
     indexedDB.open = (...args) => { if (window.failBanknoteStorage && args[0] === 'ebt-scan-photos') throw new DOMException('Quota exceeded', 'QuotaExceededError'); return open(...args); };
@@ -294,19 +290,19 @@ test('serial review waits for a choice and Next note keeps the reusable printer 
   expect(await page.evaluate(() => window.cameraRequests)).toBe(4);
 });
 
-test('a serial scan with missing required fields retains its values instead of queuing an invalid banknote', async ({ page }) => {
+test('a serial scan with a missing printer code retains its value without queuing an invalid banknote', async ({ page }) => {
   await start(page);
-  await page.locator('#printer-code').fill('R001A1');
+  await fillLocation(page);
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
   await page.locator('.field-row').last().getByRole('button', { name: 'Scan', exact: true }).click();
   const review = page.getByRole('dialog', { name: 'Review scanned banknote' });
   await expect(review.getByText(note.serial, { exact: true })).toBeVisible();
-  await expect(review.getByText('R001A1', { exact: true })).toBeVisible();
+  await expect(review.getByText('Missing', { exact: true })).toBeVisible();
   await review.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(page.locator('.camera-sheet')).toHaveCount(0);
   await expect(page.locator('#serial-number')).toHaveValue(note.serial);
-  await expect(page.locator('.entry-panel [role="status"]')).toContainText('Country:');
-  await fillLocation(page);
+  await expect(page.locator('.entry-panel [role="status"]')).toContainText('Printer code:');
+  await page.locator('#printer-code').fill('R001A1');
   await page.getByRole('button', { name: /Add note to queue/ }).click();
   await page.getByRole('button', { name: /^Queue/ }).click();
   await expect(page.locator('.note-list article')).toHaveCount(1);

@@ -13,7 +13,7 @@ Contact: [support@eurocoins.cc](mailto:support@eurocoins.cc)
 
 ## Using it
 
-1. Add a location, choose a denomination and scan the printer code.
+1. Enter the country, postal code, and city. Choose a denomination and scan the printer code.
 2. Turn the note over and scan the serial number.
 3. Review both codes together. Choose **Redo scan** to rescan the serial, **Next note** to queue it and keep scanning, or **Finish** to queue it and open Queue.
    Manual entries use **Add note to queue**.

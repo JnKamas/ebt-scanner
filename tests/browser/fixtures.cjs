@@ -41,4 +41,9 @@ async function setup(page, { notes = [], signedIn = false, preferences = {} } = 
     };
   }, { notes, preferences });
 }
-module.exports = { setup, note };
+async function fillLocation(page) {
+  await page.getByLabel('Country', { exact: true }).fill(note.country);
+  await page.getByLabel('Postal code', { exact: true }).fill('811 01');
+  await page.getByLabel('City', { exact: true }).fill(note.city);
+}
+module.exports = { setup, note, fillLocation };

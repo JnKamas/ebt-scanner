@@ -26,6 +26,12 @@ type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number
 type PaddleEngine = Awaited<ReturnType<typeof createOcrWorker>>;
 type OcrStatus = "loading" | "ready" | "error";
 
+const scanLocationHint = "Enter the country, postal code, and city before scanning.";
+
+function hasScanLocation({ country, postalCode, city }: Pick<Note, "country" | "postalCode" | "city">) {
+  return Boolean(country.trim() && postalCode.trim() && city.trim());
+}
+
 function ScanCapture({ capture, label }: { capture: FrozenScan; label: string }) {
   const { width, height } = capture;
   const size = { aspectRatio: `${width} / ${height}`, width: `min(920px, 100%, ${32 * width / height}dvh)` };
@@ -302,6 +308,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   const serialOk = isSerialValid(clean(draft.serial));
   const codeOk = isCodeValid(clean(draft.printerCode));
   const denominationOk = denominations.includes(draft.denomination);
+  const scanLocationOk = hasScanLocation(draft);
+  const canScan = denominationOk && scanLocationOk && ocrStatus === "ready" && !isScanning && !cameraPending;
   const batch = useMemo(() => submissionBatch(notes), [notes]);
   const total = useMemo(() => notes.reduce((sum, note) => sum + Number(note.denomination), 0), [notes]);
   const notesPerHit = account && Number(account.totalhits) > 0 ? (Number(account.totalbills) / Number(account.totalhits)).toFixed(1) : "—";
@@ -563,6 +571,11 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     if (cameraPending) return;
     if (!previewOnly && !denominations.includes(draftRef.current.denomination)) {
       setMessage("Choose a denomination before scanning a banknote.");
+      return;
+    }
+    if (!previewOnly && !hasScanLocation(draftRef.current)) {
+      stopCamera();
+      setMessage(scanLocationHint);
       return;
     }
     if (!previewOnly && !ocrRef.current) {
@@ -890,16 +903,17 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
 
       <div className="note-card">
         <div className="denominations" aria-label="Choose a denomination">{denominations.map((value) => <button type="button" key={value} className={draft.denomination === value ? "chosen" : ""} onClick={() => chooseDenomination(value)} disabled={isScanning} aria-label={`Choose €${value}`}>€{value}</button>)}</div>
-        {!denominationOk && <p className="denomination-hint">Choose a denomination to enable scanning.</p>}
+        {!denominationOk && <p className="scan-requirements">Choose a denomination to enable scanning.</p>}
+        {!scanLocationOk && <p className="scan-requirements">{scanLocationHint}</p>}
         <div className={`field-row${draft.printerCode && !codeOk ? " field-invalid" : ""}`}>
-          <div className="field-heading"><label htmlFor="printer-code">Printer code <BanknoteFlag serial={draft.serial} printerCode={draft.printerCode} /> <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="printer-code">Printer code <BanknoteFlag serial={draft.serial} printerCode={draft.printerCode} /> <em>{draft.printerCode ? (codeOk ? "valid format" : "check format") : "step 1"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("printerCode")} disabled={!canScan}>Scan</button></div>
           <div className="printer-entry">
             <input id="printer-code" value={draft.printerCode} onChange={(e) => update("printerCode", e.target.value)} placeholder="R001A1" autoCapitalize="characters" aria-invalid={Boolean(draft.printerCode) && !codeOk} />
             <label className="batch-toggle"><input type="checkbox" checked={reusePrinterCode} onChange={(event) => setReusePrinterCode(event.target.checked)} /><span>Use this printer code for multiple notes</span></label>
           </div>
         </div>
         <div className={`field-row${draft.serial && !serialOk ? " field-invalid" : ""}`}>
-          <div className="field-heading"><label htmlFor="serial-number">Serial number <BanknoteFlag serial={draft.serial} /> <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!denominationOk || ocrStatus !== "ready" || isScanning || cameraPending}>Scan</button></div>
+          <div className="field-heading"><label htmlFor="serial-number">Serial number <BanknoteFlag serial={draft.serial} /> <em>{draft.serial ? (serialOk ? "checksum passed" : "check checksum") : "step 2"}</em></label><button type="button" className="field-scan" onClick={() => openCamera("serial")} disabled={!canScan}>Scan</button></div>
           <input id="serial-number" value={draft.serial} onChange={(e) => update("serial", e.target.value)} placeholder="S02896734778" autoCapitalize="characters" aria-invalid={Boolean(draft.serial) && !serialOk} />
         </div>
       </div>

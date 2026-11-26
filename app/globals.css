@@ -34,7 +34,7 @@ button { cursor:pointer; }
 .printer-entry > input { flex:1; min-width:90px; }
 .field-row .batch-toggle { display:flex; flex:0 1 185px; align-items:center; gap:8px; margin:8px 0 0; color:var(--ink); font-size:11px; line-height:1.4; letter-spacing:0; }
 .field-row .batch-toggle input { flex:none; width:17px; height:17px; margin:0; padding:0; accent-color:var(--mint-dark); }
-.denomination-hint { margin:0; padding:0 15px 12px; color:var(--muted); font-size:12px; }
+.scan-requirements { margin:0; padding:0 15px 12px; color:var(--muted); font-size:12px; }
 .note-list .queued-note { display:flex; align-items:flex-start; gap:10px; min-width:0; }
 .note-list .queued-note strong { flex:none; width:50px; }
 .note-list .queued-details { display:grid; gap:5px; min-width:0; }
