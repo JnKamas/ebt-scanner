@@ -862,8 +862,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           <div className="result-actions">
             <button type="button" className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button>
             {reviewingNote ? <>
-              <button type="button" className="redo-scan" onClick={() => acceptScannedNote(true)}>Next note</button>
-              <button type="button" className="continue-scan" onClick={() => acceptScannedNote(false)}>Finish</button>
+              <button type="button" className="redo-scan" onClick={() => acceptScannedNote(false)}>Finish</button>
+              <button type="button" className="continue-scan" onClick={() => acceptScannedNote(true)}>Next note</button>
             </> : <button type="button" className="continue-scan" onClick={continueToSerial}>Continue now</button>}
           </div>
         </> : <>

@@ -6,7 +6,7 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.10**.
 
-- Review both scan photos with the recognized codes sized to match. The printer code appears below the serial number, followed by Redo scan, Next note and Finish.
+- Review both scan photos with the recognized codes sized to match. The printer code appears below the serial number. The green Next note button spans the row below Redo scan and Finish.
 
 ## [1.3.9] - 2026-11-24
 
