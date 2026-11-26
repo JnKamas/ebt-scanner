@@ -170,6 +170,14 @@ button { cursor:pointer; }
 .scan-success .capture-code-value { height:auto; }
 .banknote-code-pair > div > strong.has-capture-code { height:36px; border:1px solid transparent; }
 .result-preview { max-height:none; }
+
+.camera-review { overflow-y:auto; }
+.camera-review .camera-toolbar, .camera-review .scan-success, .camera-review .result-actions { flex-shrink:0; }
+.scan-review-codes { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 0 12px; }
+.scan-review-codes > div { flex:1 1 auto; max-width:210px; padding:8px 12px; border-radius:10px; background:#ffffff12; }
+.scan-review-codes dt { color:#b7cbd1; font-size:12px; }
+.scan-review-codes dd { margin:4px 0 0; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:clamp(16px,4vw,22px); font-weight:700; overflow-wrap:anywhere; }
+.camera-review .result-actions > button { padding:6px; }
 .develop-demo-link { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; padding:10px 14px; border-bottom:1px solid var(--line); background:#e6f7f2; font-size:13px; }
 .develop-demo-link small { color:var(--muted); }
 .demo-controls { margin:12px 0; padding:14px; border:1px solid var(--line); border-radius:10px; background:#e6f7f2; }

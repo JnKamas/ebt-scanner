@@ -81,7 +81,6 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   const photoWritesRef = useRef<Promise<void>>(Promise.resolve());
   const [resultDisplaySeconds, setResultDisplaySeconds] = useState(5);
   const [resultSecondsRemaining, setResultSecondsRemaining] = useState(0);
-  const [autoQueueNext, setAutoQueueNext] = useState(false);
   const [reusePrinterCode, setReusePrinterCode] = useState(false);
   const [cameraPreferences, setCameraPreferences] = useState(defaultCameras);
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -106,6 +105,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   const ocrLoadingRef = useRef<Promise<PaddleEngine> | null>(null);
   const cameraActiveRef = useRef(false);
   const targetRef = useRef<ScanTarget>("printerCode");
+  const batchScanRef = useRef(false);
   const readingFrameRef = useRef(false);
   const scanTimeoutRef = useRef<number | null>(null);
   const resultTimeoutRef = useRef<number | null>(null);
@@ -193,7 +193,6 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   useEffect(() => {
     const savedSeconds = Number(readPreference("ebt-web-result-display-seconds"));
     if (Number.isFinite(savedSeconds) && savedSeconds >= 1 && savedSeconds <= 15) setResultDisplaySeconds(savedSeconds);
-    setAutoQueueNext(readPreference("ebt-web-auto-queue-next") === "true");
     setReusePrinterCode(readPreference("ebt-web-reuse-printer-code") === "true");
     try {
       const saved = JSON.parse(readPreference("ebt-web-cameras") || "null");
@@ -261,11 +260,6 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     if (!preferencesReady) return;
     writePreference("ebt-web-result-display-seconds", String(resultDisplaySeconds));
   }, [resultDisplaySeconds, preferencesReady]);
-
-  useEffect(() => {
-    if (!preferencesReady) return;
-    writePreference("ebt-web-auto-queue-next", String(autoQueueNext));
-  }, [autoQueueNext, preferencesReady]);
 
   useEffect(() => {
     const request = accountRequestRef.current;
@@ -420,28 +414,24 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   function continueToSerial() {
     clearResultCountdown();
     setScanResult(null);
-    void openCamera("serial");
+    void openCamera("serial", false, batchScanRef.current);
   }
 
-  function continueAfterScan(target: ScanTarget, banknotePhotos = latestPhotos) {
-    if (target === "printerCode") {
-      continueToSerial();
+  function acceptScannedNote(scanNext: boolean) {
+    const queued = addNote(true);
+    if (queued && scanNext) {
+      void openCamera(reusePrinterCode ? "serial" : "printerCode", false, true);
       return;
     }
     stopCamera();
-    if (addNote(true, banknotePhotos)) {
-      if (autoQueueNext) void openCamera(reusePrinterCode ? "serial" : "printerCode");
-      else {
-        setTab("queue");
-        setMessages((current) => ({ ...current, queue: "Banknote added to the queue. Review or edit it here before submitting." }));
-      }
+    if (queued) {
+      setTab("queue");
+      setMessages((current) => ({ ...current, queue: "Banknote added to the queue. Review or edit it here before submitting." }));
     }
   }
 
   function redoLiveScan(target: ScanTarget) {
-    clearResultCountdown();
-    setScanResult(null);
-    void openCamera(target);
+    void openCamera(target, false, batchScanRef.current);
   }
 
   function queuePhotoWrite(action: () => Promise<void>) {
@@ -471,16 +461,16 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     setIsScanning(false);
     setPreviewReady(false);
     const photo: ScanPhoto = { ...match, target, image, width, height, cropVersion: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), denomination: draftRef.current.denomination, printerCode: draftRef.current.printerCode };
-    const banknotePhotos = { ...latestPhotos, [target]: photo };
-    setLatestPhotos(banknotePhotos);
+    setLatestPhotos((current) => ({ ...current, [target]: photo }));
     clearResultCountdown();
     setScanResult({ ...match, target, image, width, height });
+    if (target === "serial") return;
     const finishAt = Date.now() + resultDisplaySeconds * 1000;
     setResultSecondsRemaining(resultDisplaySeconds);
     resultCountdownRef.current = window.setInterval(() => {
       setResultSecondsRemaining(Math.max(0, Math.ceil((finishAt - Date.now()) / 1000)));
     }, 200);
-    resultTimeoutRef.current = window.setTimeout(() => continueAfterScan(target, banknotePhotos), resultDisplaySeconds * 1000);
+    resultTimeoutRef.current = window.setTimeout(continueToSerial, resultDisplaySeconds * 1000);
   }
 
   async function readFrame() {
@@ -530,7 +520,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       const [result] = await ocr.predict(pixels, { textDetLimitSideLen: 1280, textDetLimitType: "max", textRecScoreThresh: 0 });
       const match = findValidCode(result?.items ?? [], target);
       if (match && cameraActiveRef.current && request === cameraRequestRef.current && target === targetRef.current) {
-        if (target === "serial" && autoQueueNext && notesRef.current.some((note) => note.serial === match.value)) {
+        if (target === "serial" && batchScanRef.current && notesRef.current.some((note) => note.serial === match.value)) {
           setCameraHint("That serial is already queued. Show the next banknote, or close the camera to review the queue.");
           return;
         }
@@ -547,7 +537,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     }
   }
 
-  async function openCamera(target: ScanTarget, previewOnly = false) {
+  async function openCamera(target: ScanTarget, previewOnly = false, batchScan = false) {
     if (cameraPending) return;
     if (!previewOnly && !denominations.includes(draftRef.current.denomination)) {
       setMessage("Choose a denomination before scanning a banknote.");
@@ -558,6 +548,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       return;
     }
     targetRef.current = target;
+    batchScanRef.current = batchScan;
     setScanTarget(target);
     setCameraHint(`Looking for the ${labelFor(target)}…`);
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -643,7 +634,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     );
   }
 
-  function addNote(keepLocationAndComment = false, banknotePhotos = latestPhotos) {
+  function addNote(keepLocationAndComment = false) {
     const currentDraft = draftRef.current;
     const errors = noteErrors(currentDraft);
     if (errors.length) {
@@ -652,7 +643,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     }
     const newNote: Note = { ...currentDraft, serial: clean(currentDraft.serial), printerCode: clean(currentDraft.printerCode), id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setNotes((current) => [newNote, ...current]);
-    queuePhotoWrite(() => storePhotoCard(newNote, banknotePhotos));
+    queuePhotoWrite(() => storePhotoCard(newNote, latestPhotos));
     setLatestPhotos((current) => reusePrinterCode && current.printerCode?.value === clean(currentDraft.printerCode) ? { printerCode: current.printerCode } : {});
     const nextDraft = keepLocationAndComment ? { ...currentDraft, serial: "", printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" } : { ...blankDraft(), denomination: currentDraft.denomination, country: currentDraft.country, city: currentDraft.city, postalCode: currentDraft.postalCode, printerCode: reusePrinterCode ? clean(currentDraft.printerCode) : "" };
     updateDraft(() => nextDraft);
@@ -809,6 +800,8 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
     }
   }
 
+  const reviewingNote = scanResult?.target === "serial";
+
   return <main className="shell">
     {showDemoTools && <aside className="develop-demo-link"><Link href="/demo">Open visual demo</Link><small>Fake notes and hits, separate from your banknotes.</small></aside>}
     <header className="topbar">
@@ -822,10 +815,10 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
     </section>}
 
-      {cameraOpen && <div className="camera-sheet" role="dialog" aria-label="Scan banknote with camera">
+      {cameraOpen && <div className={`camera-sheet${reviewingNote ? " camera-review" : ""}`} role="dialog" aria-label={reviewingNote ? "Review scanned banknote" : "Scan banknote with camera"}>
         <div className="camera-toolbar">
           <div className="camera-context">
-            <small>€{draft.denomination || "—"}{(scanResult?.target ?? scanTarget) === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
+            <small>€{draft.denomination || "—"}{!scanResult && scanTarget === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
             <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `${!previewReady ? "Preparing" : cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
           </div>
           <button onClick={stopCamera} aria-label="Close camera">×</button>
@@ -835,8 +828,25 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
             <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
             {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
           </div>
-          <div className="scan-success"><span>{scanResult.target === "printerCode" ? "VALID EBT PRINTER CODE FORMAT" : "VALID EBT SERIAL CHECKSUM"}</span><strong className="has-capture-code" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}><CaptureCodeValue {...scanResult} /></strong><small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small><small>{scanResult.target === "printerCode" ? "Printer code captured. Turn the note over for the serial number." : "Serial number captured. The banknote will be added to Queue."} Continuing in {resultSecondsRemaining}s.</small></div>
-          <div className="result-actions"><button className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button><button className="continue-scan" onClick={() => continueAfterScan(scanResult.target)}>Continue now</button></div>
+          <div className="scan-success">
+            {reviewingNote ? <dl className="scan-review-codes">
+              <div><dt>Printer code</dt><dd>{draft.printerCode || "Missing"}</dd></div>
+              <div><dt>Serial number</dt><dd>{scanResult.value}</dd></div>
+            </dl> : <>
+              <span>VALID EBT PRINTER CODE FORMAT</span>
+              <strong className="has-capture-code" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}><CaptureCodeValue {...scanResult} /></strong>
+            </>}
+            {reviewingNote && <span>VALID EBT SERIAL CHECKSUM</span>}
+            <small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small>
+            {!reviewingNote && <small>Printer code captured. Turn the note over for the serial number. Continuing in {resultSecondsRemaining}s.</small>}
+          </div>
+          <div className="result-actions">
+            <button type="button" className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button>
+            {reviewingNote ? <>
+              <button type="button" className="redo-scan" onClick={() => acceptScannedNote(true)}>Next note</button>
+              <button type="button" className="continue-scan" onClick={() => acceptScannedNote(false)}>Finish</button>
+            </> : <button type="button" className="continue-scan" onClick={continueToSerial}>Continue now</button>}
+          </div>
         </> : <>
           <div className="camera-preview" aria-busy={!previewReady}>
             <video ref={videoRef} autoPlay playsInline muted />
@@ -906,7 +916,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           </select></label>
           <button type="button" className="camera-test" onClick={() => void openCamera(target, true)} disabled={cameraPending || cameraOpen}>Test camera: {labelFor(target)} (no recognition)</button>
         </fieldset>)}
-        <label>Show each scan result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>Each captured code stays visible for this long. After the serial result, a complete, valid banknote goes to Queue, then automatic scanning starts the next note if enabled.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small><label className="toggle-setting"><input type="checkbox" checked={autoQueueNext} onChange={(event) => setAutoQueueNext(event.target.checked)} /><span>Scan the next banknote automatically</span></label></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
+        <label>Show printer code result for <select value={resultDisplaySeconds} onChange={(event) => setResultDisplaySeconds(Number(event.target.value))}>{Array.from({ length: 15 }, (_, index) => index + 1).map((seconds) => <option key={seconds} value={seconds}>{seconds}</option>)}</select> seconds</label><small>The printer code stays visible for this long before scanning the serial number.</small><small>Both scans require at least {Math.round(minimumOcrConfidence * 100)}% OCR confidence. Format and serial checksum checks still apply.</small></div>{installPlatform && <div className="setting"><span>{installPlatform === "ios" ? "Install on iPhone or iPad" : "Install on Android"}</span><small>{installPlatform === "ios" ? "In Safari: Share → Add to Home Screen" : "In Chrome: menu (⋮) → Add to Home screen → Install"}</small></div>}<div className="setting"><span>Clear local queue</span><button disabled={notes.length === 0 || isSubmitting} onClick={() => { if (!window.confirm(`Clear all ${notes.length} queued note${notes.length === 1 ? "" : "s"} from this browser? This cannot be undone.`)) return; setNotes([]); setEditingNote(null); setMessage("Local queue cleared."); }}>Clear</button></div>{message && <p className="notice" role="status">{message}</p>}</section>}
 
     <nav className="bottom-nav" aria-label="Main navigation">
       {(["entry", "queue", "profile", "settings"] as const).map((item) => <button type="button" key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>

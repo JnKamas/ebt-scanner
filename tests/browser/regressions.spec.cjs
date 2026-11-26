@@ -2,13 +2,12 @@ const { test, expect } = require('@playwright/test');
 const { setup, note } = require('./fixtures.cjs');
 
 test('queue survives Strict Mode startup and development never registers a worker', async ({ page }) => {
-  await setup(page, { notes: [note], preferences: { 'ebt-web-result-display-seconds': '7', 'ebt-web-auto-queue-next': 'true' } });
+  await setup(page, { notes: [note], preferences: { 'ebt-web-result-display-seconds': '7' } });
   await page.goto('http://localhost:3002');
   await page.getByRole('button', { name: /^Queue/ }).click();
   await expect(page.locator('.note-list article')).toHaveCount(1);
   await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByLabel('Show each scan result for')).toHaveValue('7');
-  await expect(page.getByRole('checkbox', { name: 'Scan the next banknote automatically' })).toBeChecked();
+  await expect(page.getByLabel('Show printer code result for')).toHaveValue('7');
   await page.reload();
   await page.getByRole('button', { name: /^Queue/ }).click();
   await expect(page.locator('.note-list article')).toHaveCount(1);
