@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import AppInformation from "./app-information";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
@@ -26,7 +26,7 @@ type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number
 type PaddleEngine = Awaited<ReturnType<typeof createOcrWorker>>;
 type OcrStatus = "loading" | "ready" | "error";
 
-function ScanCapture({ capture, label, children }: { capture: FrozenScan; label: string; children?: ReactNode }) {
+function ScanCapture({ capture, label }: { capture: FrozenScan; label: string }) {
   const { width, height } = capture;
   const size = { aspectRatio: `${width} / ${height}`, width: `min(920px, 100%, ${32 * width / height}dvh)` };
   const photoLabel = capture.target === "serial" ? "Captured serial number" : "Captured printer code";
@@ -44,7 +44,6 @@ function ScanCapture({ capture, label, children }: { capture: FrozenScan; label:
     <div className="scan-success">
       <span>{label}</span>
       <strong className="has-capture-code" style={size}><CaptureCodeValue {...capture} /></strong>
-      {children}
     </div>
   </>;
 }
@@ -839,32 +838,35 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
       {ocrStatus === "error" ? <button type="button" onClick={() => void getOcr().catch(() => undefined)}>Try again</button> : <i aria-hidden="true"><b /></i>}
     </section>}
 
-      {cameraOpen && <div className={`camera-sheet${reviewingNote ? " camera-review" : ""}`} role="dialog" aria-label={reviewingNote ? "Review scanned banknote" : "Scan banknote with camera"}>
+      {cameraOpen && <div className={`camera-sheet${scanResult ? " camera-result" : ""}${reviewingNote ? " camera-review" : ""}`} role="dialog" aria-label={reviewingNote ? "Review scanned banknote" : "Scan banknote with camera"}>
         <div className="camera-toolbar">
           <div className="camera-context">
             <small>€{draft.denomination || "—"}{!scanResult && scanTarget === "serial" && draft.printerCode ? ` · ${draft.printerCode}` : ""}</small>
-            <span>{scanResult ? `Valid ${labelFor(scanResult.target)} found` : `${!previewReady ? "Preparing" : cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
+            <span>{scanResult ? reviewingNote ? "Review banknote" : "Printer code captured" : `${!previewReady ? "Preparing" : cameraPreviewOnly ? "Camera preview for" : "Scanning"} ${labelFor(scanTarget)}`}</span>
           </div>
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
         {scanResult ? <>
-          <ScanCapture capture={scanResult} label={reviewingNote ? "VALID EBT SERIAL CHECKSUM" : "VALID EBT PRINTER CODE FORMAT"}>
-            <small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small>
-            {!reviewingNote && <small>Printer code captured. Turn the note over for the serial number. Continuing in {resultSecondsRemaining}s.</small>}
-          </ScanCapture>
-          {reviewingNote && <section className="review-printer-capture" aria-label="Printer code">
-            {printerPhoto ? <ScanCapture capture={printerPhoto} label="PRINTER CODE" /> : <div className="scan-success">
-              <span>PRINTER CODE</span>
-              <strong>{draft.printerCode || "Missing"}</strong>
-              {draft.printerCode && <small>Photo unavailable</small>}
+          <div className="result-content">
+            {reviewingNote && <section className="review-printer-capture" aria-label="Printer code">
+              {printerPhoto ? <ScanCapture capture={printerPhoto} label="PRINTER CODE" /> : <div className="scan-success">
+                <span>PRINTER CODE</span>
+                <strong>{draft.printerCode || "Missing"}</strong>
+                {draft.printerCode && <small>Photo unavailable</small>}
+              </div>}
+            </section>}
+            <ScanCapture capture={scanResult} label={reviewingNote ? "VALID EBT SERIAL CHECKSUM" : "VALID EBT PRINTER CODE FORMAT"} />
+            {!reviewingNote && <div className="printer-result-instructions">
+              <p>Turn the note over to scan the serial number.</p>
+              <small>Serial scan starts in {resultSecondsRemaining}s.</small>
             </div>}
-          </section>}
+          </div>
           <div className="result-actions">
             <button type="button" className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button>
             {reviewingNote ? <>
               <button type="button" className="redo-scan" onClick={() => acceptScannedNote(false)}>Finish</button>
               <button type="button" className="continue-scan" onClick={() => acceptScannedNote(true)}>Next note</button>
-            </> : <button type="button" className="continue-scan" onClick={continueToSerial}>Continue now</button>}
+            </> : <button type="button" className="continue-scan" onClick={continueToSerial}>Scan serial number</button>}
           </div>
         </> : <>
           <div className="camera-preview" aria-busy={!previewReady}>

@@ -24,6 +24,7 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('R001I1');
   await expect(page.locator('.result-box')).toHaveCount(1);
+  await expect(page.getByText('OCR confidence', { exact: false })).toHaveCount(0);
   await expect(page.locator('#printer-code')).toHaveValue('R001I1');
   expect(await page.evaluate(() => window.cameraStops)).toBe(1);
   expect(await page.evaluate(() => ({
@@ -32,7 +33,7 @@ test('only explicit Scan opens the camera; valid I codes freeze the frame and co
     limitSideLen: window.lastOcrParams.textDetLimitSideLen,
   }))).toEqual({ rawPixels: true, limitType: 'max', limitSideLen: 1280 });
   await page.evaluate(value => { window.ocrItems = [value]; }, item('X00000000002'));
-  await page.getByRole('button', { name: /Scan serial number|Continue/ }).click();
+  await page.getByRole('button', { name: 'Scan serial number' }).click();
   const review = page.getByRole('dialog', { name: 'Review scanned banknote' });
   await expect(review.getByText('R001I1', { exact: true })).toBeVisible();
   await expect(review.getByText('X00000000002', { exact: true })).toBeVisible();
@@ -142,7 +143,7 @@ test('switching to the serial camera keeps the same scanner panel behind loading
   await page.locator('.field-row').first().getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(page.locator('.scan-success strong')).toHaveText('R001I1');
   await page.evaluate(() => { window.originalScanner = document.querySelector('.camera-sheet'); window.ocrItems = []; });
-  await page.getByRole('button', { name: 'Continue now' }).click();
+  await page.getByRole('button', { name: 'Scan serial number' }).click();
   await expect(page.locator('.preview-loading')).toBeVisible();
   expect(await page.evaluate(() => window.originalScanner === document.querySelector('.camera-sheet'))).toBe(true);
   await page.evaluate(() => window.allowNextCamera());

@@ -62,7 +62,7 @@ test('complete scans retain paired crops for review and remove the banknote afte
   await expect(page.getByRole('button', { name: 'Keep reviewing' })).toHaveCount(0);
   expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
   await page.evaluate(() => { window.ocrItems = []; });
-  await page.getByRole('button', { name: 'Continue now' }).click();
+  await page.getByRole('button', { name: 'Scan serial number' }).click();
   await expect(page.locator('.previous-scan-photo img')).toBeVisible();
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
   const review = page.getByRole('dialog', { name: 'Review scanned banknote' });
@@ -70,6 +70,8 @@ test('complete scans retain paired crops for review and remove the banknote afte
   await expect(review.getByText('VALID EBT SERIAL CHECKSUM')).toBeVisible();
   await expect(review.getByRole('img', { name: 'Captured serial number' })).toBeVisible();
   await expect(review.getByRole('img', { name: 'Captured printer code' })).toBeVisible();
+  await expect(review.locator('.result-preview img').first()).toHaveAttribute('alt', 'Captured printer code');
+  await expect(review.getByText('OCR confidence', { exact: false })).toHaveCount(0);
   const captures = await review.evaluate(dialog => ({
     photos: [...dialog.querySelectorAll('.result-preview img')].map(image => [
       image.getBoundingClientRect().width,
@@ -268,7 +270,7 @@ test('serial review waits for a choice and Next note keeps the reusable printer 
   await page.getByRole('checkbox', { name: 'Use this printer code for multiple notes' }).check();
   await printerScan(page);
   await page.evaluate(value => { window.ocrItems = [value]; }, item(note.serial));
-  await page.getByRole('button', { name: 'Continue now' }).click();
+  await page.getByRole('button', { name: 'Scan serial number' }).click();
   const review = page.getByRole('dialog', { name: 'Review scanned banknote' });
   await expect(review.getByText(note.serial, { exact: true })).toBeVisible();
   await page.clock.fastForward(16000);
