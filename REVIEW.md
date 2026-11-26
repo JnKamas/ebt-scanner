@@ -6,6 +6,8 @@ Automated tests cover scanning, note entry, saved drafts, sign-in and submission
 handling. They use made-up account data and simulated EBT responses. You can see the
 results in [GitHub Actions](https://github.com/JnKamas/ebt-scanner/actions).
 
+Release **1.3.10** covers the location fields required before scanning, code sizes matching their scan photos, direct continuation to the next note, and finishing in the queue.
+
 Release **1.3.9** adds regression coverage for comment suggestion taps after focus
 changes, comment changes immediately before queueing, and per-note comments in a
 batch containing a hit.
