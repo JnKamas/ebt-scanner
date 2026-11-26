@@ -68,7 +68,19 @@ test('complete scans retain paired crops for review and remove the banknote afte
   const review = page.getByRole('dialog', { name: 'Review scanned banknote' });
   await expect(review.getByText(note.serial, { exact: true })).toBeVisible();
   await expect(review.getByText('VALID EBT SERIAL CHECKSUM')).toBeVisible();
-  await expect(review.locator('.result-preview img')).toBeVisible();
+  await expect(review.getByRole('img', { name: 'Captured serial number' })).toBeVisible();
+  await expect(review.getByRole('img', { name: 'Captured printer code' })).toBeVisible();
+  const captures = await review.evaluate(dialog => ({
+    photos: [...dialog.querySelectorAll('.result-preview img')].map(image => [
+      image.getBoundingClientRect().width,
+      image.getBoundingClientRect().height,
+    ]),
+    text: [...dialog.querySelectorAll('.capture-code-value')].map(svg => [
+      svg.getBoundingClientRect().width,
+      svg.getBoundingClientRect().height,
+    ]),
+  }));
+  expect(captures.text).toEqual(captures.photos);
   expect(await counts(page)).toEqual({ banknotes: 0, crops: 0 });
   await review.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(page.locator('.camera-sheet')).toHaveCount(0);

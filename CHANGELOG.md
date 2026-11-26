@@ -6,7 +6,7 @@ Older entries describe those versions, including features since changed or remov
 
 Next version: **1.3.10**.
 
-- Show the serial number with the printer code below it after scanning a banknote, with Redo scan, Next note and Finish actions.
+- Review both scan photos with the recognized codes sized to match. The printer code appears below the serial number, followed by Redo scan, Next note and Finish.
 
 ## [1.3.9] - 2026-11-24
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import AppInformation from "./app-information";
 import { EntryLocationFields, PersonalProfile, SubmissionReceipts } from "./ebt-account-tools";
@@ -25,6 +25,29 @@ const defaultCameras = (): Record<ScanTarget, CameraPreference> => ({ printerCod
 type FrozenScan = ScanMatch & { target: ScanTarget; image: string; width: number; height: number };
 type PaddleEngine = Awaited<ReturnType<typeof createOcrWorker>>;
 type OcrStatus = "loading" | "ready" | "error";
+
+function ScanCapture({ capture, label, children }: { capture: FrozenScan; label: string; children?: ReactNode }) {
+  const { width, height } = capture;
+  const size = { aspectRatio: `${width} / ${height}`, width: `min(920px, 100%, ${32 * width / height}dvh)` };
+  const photoLabel = capture.target === "serial" ? "Captured serial number" : "Captured printer code";
+
+  return <>
+    <div className="camera-preview result-preview" style={size}>
+      <img src={capture.image} alt={photoLabel} />
+      {capture.boxes.map((box, index) => <i key={index} className="result-box" style={{
+        left: `${(box.x0 / width) * 100}%`,
+        top: `${(box.y0 / height) * 100}%`,
+        width: `${((box.x1 - box.x0) / width) * 100}%`,
+        height: `${((box.y1 - box.y0) / height) * 100}%`,
+      }} />)}
+    </div>
+    <div className="scan-success">
+      <span>{label}</span>
+      <strong className="has-capture-code" style={size}><CaptureCodeValue {...capture} /></strong>
+      {children}
+    </div>
+  </>;
+}
 
 export default function EbtScanner({ version, showDemoTools = false }: { version: string; showDemoTools?: boolean }) {
   const [tab, setTab] = useState<Tab>("entry");
@@ -801,6 +824,7 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
   }
 
   const reviewingNote = scanResult?.target === "serial";
+  const printerPhoto = latestPhotos.printerCode?.value === draft.printerCode ? latestPhotos.printerCode : undefined;
 
   return <main className="shell">
     {showDemoTools && <aside className="develop-demo-link"><Link href="/demo">Open visual demo</Link><small>Fake notes and hits, separate from your banknotes.</small></aside>}
@@ -824,22 +848,17 @@ export default function EbtScanner({ version, showDemoTools = false }: { version
           <button onClick={stopCamera} aria-label="Close camera">×</button>
         </div>
         {scanResult ? <>
-          <div className="camera-preview result-preview" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}>
-            <img src={scanResult.image} alt={`Captured ${scanResult.target}`} />
-            {scanResult.boxes.map((box, index) => <i key={index} className="result-box" style={{ left: `${(box.x0 / scanResult.width) * 100}%`, top: `${(box.y0 / scanResult.height) * 100}%`, width: `${((box.x1 - box.x0) / scanResult.width) * 100}%`, height: `${((box.y1 - box.y0) / scanResult.height) * 100}%` }} />)}
-          </div>
-          <div className="scan-success">
-            {reviewingNote ? <dl className="scan-review-codes">
-              <div><dt>Serial number</dt><dd>{scanResult.value}</dd></div>
-              <div><dt>Printer code</dt><dd>{draft.printerCode || "Missing"}</dd></div>
-            </dl> : <>
-              <span>VALID EBT PRINTER CODE FORMAT</span>
-              <strong className="has-capture-code" style={{ aspectRatio: `${scanResult.width} / ${scanResult.height}`, width: `min(920px, 100%, ${32 * scanResult.width / scanResult.height}dvh)` }}><CaptureCodeValue {...scanResult} /></strong>
-            </>}
-            {reviewingNote && <span>VALID EBT SERIAL CHECKSUM</span>}
+          <ScanCapture capture={scanResult} label={reviewingNote ? "VALID EBT SERIAL CHECKSUM" : "VALID EBT PRINTER CODE FORMAT"}>
             <small className="ocr-confidence">OCR confidence: {scanResult.confidences.map((confidence) => `${Math.round(confidence * 100)}%`).join(" / ")}</small>
             {!reviewingNote && <small>Printer code captured. Turn the note over for the serial number. Continuing in {resultSecondsRemaining}s.</small>}
-          </div>
+          </ScanCapture>
+          {reviewingNote && <section className="review-printer-capture" aria-label="Printer code">
+            {printerPhoto ? <ScanCapture capture={printerPhoto} label="PRINTER CODE" /> : <div className="scan-success">
+              <span>PRINTER CODE</span>
+              <strong>{draft.printerCode || "Missing"}</strong>
+              {draft.printerCode && <small>Photo unavailable</small>}
+            </div>}
+          </section>}
           <div className="result-actions">
             <button type="button" className="redo-scan" onClick={() => redoLiveScan(scanResult.target)}>Redo scan</button>
             {reviewingNote ? <>
